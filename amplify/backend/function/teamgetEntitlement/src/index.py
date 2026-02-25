@@ -63,6 +63,7 @@ def publishPolicy(result):
                 }
                 approvalRequired
                 duration
+                policyIds
             }
             username
             }
@@ -215,6 +216,7 @@ def handler(event, context):
             maxDuration = int(duration)
         policy = {}
         policy["accounts"] = entitlement["Item"]["accounts"]
+        policy["policyIds"] = entitlement["Item"]["policyIds"] if "policyIds" in entitlement["Item"] else []
 
         # Get OU accounts based on feature flag
         ou_ids = [ou["id"] for ou in entitlement["Item"]["ous"]]

@@ -6,7 +6,7 @@ $util.qr($ctx.stash.defaultValues.put("createdAt", $createdAt))
 $util.qr($ctx.stash.defaultValues.put("updatedAt", $createdAt))
 $util.qr($ctx.args.input.put("modifiedBy", $ctx.identity.username))
 
-#if (!$util.matches("\b(OU|Account)\b", $ctx.args.input.type))
+#if (!$util.matches("\b(OU|Account|Group)\b", $ctx.args.input.type))
     	$util.error('Invalid input')
 #end
 

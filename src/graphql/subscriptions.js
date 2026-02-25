@@ -148,6 +148,7 @@ export const onCreateEligibility = /* GraphQL */ `
         id
         __typename
       }
+      policyIds
       permissions {
         name
         id
@@ -181,6 +182,7 @@ export const onUpdateEligibility = /* GraphQL */ `
         id
         __typename
       }
+      policyIds
       permissions {
         name
         id
@@ -214,6 +216,7 @@ export const onDeleteEligibility = /* GraphQL */ `
         id
         __typename
       }
+      policyIds
       permissions {
         name
         id
@@ -221,6 +224,105 @@ export const onDeleteEligibility = /* GraphQL */ `
       }
       ticketNo
       approvalRequired
+      duration
+      modifiedBy
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onCreatePolicies = /* GraphQL */ `
+  subscription OnCreatePolicies($filter: ModelSubscriptionPoliciesFilterInput) {
+    onCreatePolicies(filter: $filter) {
+      id
+      accounts {
+        name
+        id
+        __typename
+      }
+      ous {
+        name
+        id
+        __typename
+      }
+      permissions {
+        name
+        id
+        __typename
+      }
+      approvalRequired
+      approverGroupIds {
+        name
+        id
+        __typename
+      }
+      duration
+      modifiedBy
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onUpdatePolicies = /* GraphQL */ `
+  subscription OnUpdatePolicies($filter: ModelSubscriptionPoliciesFilterInput) {
+    onUpdatePolicies(filter: $filter) {
+      id
+      accounts {
+        name
+        id
+        __typename
+      }
+      ous {
+        name
+        id
+        __typename
+      }
+      permissions {
+        name
+        id
+        __typename
+      }
+      approvalRequired
+      approverGroupIds {
+        name
+        id
+        __typename
+      }
+      duration
+      modifiedBy
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onDeletePolicies = /* GraphQL */ `
+  subscription OnDeletePolicies($filter: ModelSubscriptionPoliciesFilterInput) {
+    onDeletePolicies(filter: $filter) {
+      id
+      accounts {
+        name
+        id
+        __typename
+      }
+      ous {
+        name
+        id
+        __typename
+      }
+      permissions {
+        name
+        id
+        __typename
+      }
+      approvalRequired
+      approverGroupIds {
+        name
+        id
+        __typename
+      }
       duration
       modifiedBy
       createdAt
@@ -254,6 +356,7 @@ export const onUpdateRequests = /* GraphQL */ `
       ticketNo
       revokeComment
       session_duration
+      policyId
       createdAt
       updatedAt
       owner
@@ -286,6 +389,7 @@ export const onCreateRequests = /* GraphQL */ `
       ticketNo
       revokeComment
       session_duration
+      policyId
       createdAt
       updatedAt
       owner
@@ -317,18 +421,9 @@ export const onPublishPolicy = /* GraphQL */ `
     onPublishPolicy {
       id
       policy {
-        accounts {
-          name
-          id
-          __typename
-        }
-        permissions {
-          name
-          id
-          __typename
-        }
         approvalRequired
         duration
+        policyIds
         __typename
       }
       username

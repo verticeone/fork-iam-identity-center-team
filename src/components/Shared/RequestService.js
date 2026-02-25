@@ -22,7 +22,9 @@ import {
   listGroups,
   getSettings,
   getMgmtPermissions,
-  getUserPolicy
+  getUserPolicy,
+  listPolicies,
+  getPolicies
 } from "../../graphql/queries";
 import {
   createRequests,
@@ -36,7 +38,10 @@ import {
   deleteEligibility,
   updateEligibility,
   createSettings,
-  updateSettings
+  updateSettings,
+  createPolicies,
+  updatePolicies,
+  deletePolicies
 } from "../../graphql/mutations";
 
 export async function fetchAccounts() {
@@ -445,6 +450,72 @@ export async function revokePim(data) {
     updateRequests(data).then(() => {});
   } catch (err) {
     console.log("error revoking request");
+  }
+}
+
+// Policies CRUD operations
+export async function getAllPolicies() {
+  let nextToken = null;
+  let data = [];
+  try {
+    do {
+      const request = await API.graphql(graphqlOperation(listPolicies, {
+        nextToken
+      }));
+      data = data.concat(request.data.listPolicies.items);
+      nextToken = request.data.listPolicies.nextToken;
+    } while (nextToken);
+    return data;
+  } catch (err) {
+    console.log("error fetching policies");
+    return { "error": err };
+  }
+}
+
+export async function getPolicy(id) {
+  try {
+    const request = await API.graphql(
+      graphqlOperation(getPolicies, {
+        id: id,
+      })
+    );
+    const data = await request.data.getPolicies;
+    return data;
+  } catch (err) {
+    console.log("error fetching policy");
+  }
+}
+
+export async function addPolicyTemplate(data) {
+  try {
+    const req = await API.graphql(
+      graphqlOperation(createPolicies, { input: data })
+    );
+    return req.data.createPolicies.id;
+  } catch (err) {
+    console.log("error creating policy template");
+  }
+}
+
+export async function editPolicyTemplate(data) {
+  try {
+    const req = await API.graphql(
+      graphqlOperation(updatePolicies, { input: data })
+    );
+    return req.data.updatePolicies;
+  } catch (err) {
+    console.log("error updating policy template");
+  }
+}
+
+export async function delPolicyTemplate(data) {
+  try {
+    const req = await API.graphql(
+      graphqlOperation(deletePolicies, { input: data })
+    );
+    return req.data.deletePolicies;
+  } catch (err) {
+    console.log("error deleting policy template");
   }
 }
 

@@ -1,4 +1,6 @@
 {
-  "Login": "sso login URL",
-  "DeploymentType": "deployment type"
+  "Login": "https://d-936747f60e.awsapps.com/start",
+  "DeploymentType": "management",
+  "teamAdminGroup": "Administrators",
+  "teamAuditorGroup": "Administrators"
 }

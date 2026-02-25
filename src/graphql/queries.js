@@ -26,6 +26,7 @@ export const getRequests = /* GraphQL */ `
       ticketNo
       revokeComment
       session_duration
+      policyId
       createdAt
       updatedAt
       owner
@@ -63,6 +64,7 @@ export const listRequests = /* GraphQL */ `
         ticketNo
         revokeComment
         session_duration
+        policyId
         createdAt
         updatedAt
         owner
@@ -113,6 +115,7 @@ export const requestByEmailAndStatus = /* GraphQL */ `
         ticketNo
         revokeComment
         session_duration
+        policyId
         createdAt
         updatedAt
         owner
@@ -163,6 +166,7 @@ export const requestByApproverAndStatus = /* GraphQL */ `
         ticketNo
         revokeComment
         session_duration
+        policyId
         createdAt
         updatedAt
         owner
@@ -334,6 +338,7 @@ export const getEligibility = /* GraphQL */ `
         id
         __typename
       }
+      policyIds
       permissions {
         name
         id
@@ -360,22 +365,62 @@ export const listEligibilities = /* GraphQL */ `
         id
         name
         type
-        accounts {
-          name
-          id
-          __typename
-        }
-        ous {
-          name
-          id
-          __typename
-        }
-        permissions {
-          name
-          id
-          __typename
-        }
+        policyIds
         ticketNo
+        approvalRequired
+        duration
+        modifiedBy
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const getPolicies = /* GraphQL */ `
+  query GetPolicies($id: ID!) {
+    getPolicies(id: $id) {
+      id
+      accounts {
+        name
+        id
+        __typename
+      }
+      ous {
+        name
+        id
+        __typename
+      }
+      permissions {
+        name
+        id
+        __typename
+      }
+      approvalRequired
+      approverGroupIds {
+        name
+        id
+        __typename
+      }
+      duration
+      modifiedBy
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const listPolicies = /* GraphQL */ `
+  query ListPolicies(
+    $filter: ModelPoliciesFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listPolicies(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
         approvalRequired
         duration
         modifiedBy
@@ -466,18 +511,9 @@ export const getUserPolicy = /* GraphQL */ `
     getUserPolicy(userId: $userId, groupIds: $groupIds) {
       id
       policy {
-        accounts {
-          name
-          id
-          __typename
-        }
-        permissions {
-          name
-          id
-          __typename
-        }
         approvalRequired
         duration
+        policyIds
         __typename
       }
       username
@@ -518,6 +554,7 @@ export const updateRequestData = /* GraphQL */ `
       ticketNo
       revokeComment
       session_duration
+      policyId
       createdAt
       updatedAt
       owner
@@ -550,6 +587,7 @@ export const validateRequest = /* GraphQL */ `
       ticketNo
       revokeComment
       session_duration
+      policyId
       createdAt
       updatedAt
       owner

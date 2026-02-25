@@ -243,6 +243,7 @@ function Approvers(props) {
   const [ticketError, setTicketError] = useState("");
   const [resource, setResource] = useState("");
   const [resourceError, setResourceError] = useState("");
+  const [groupName, setGroupName] = useState("");
 
   const [accounts, setAccounts] = useState([]);
   const [accountStatus, setAccountStatus] = useState("finished");
@@ -406,13 +407,23 @@ function Approvers(props) {
       setTicketError("Enter valid change management ticket number");
       valid = false;
     }
-    if (!resource && action === "submit") {
-      setResourceError("Select a valid entity");
-      valid = false;
-    }
     if (!Type && action === "submit") {
       setTypeError("Select a valid entity type");
       valid = false;
+    }
+    if (action === "submit") {
+      if (Type.value === "Group") {
+        if (!groupName || groupName.trim() === "") {
+          setResourceError("Enter a valid group name");
+          valid = false;
+        } else if (allItems.some(item => item.id === groupName.trim())) {
+          setResourceError("Group name already exists");
+          valid = false;
+        }
+      } else if (!resource) {
+        setResourceError("Select a valid entity");
+        valid = false;
+      }
     }
     return valid;
   }
@@ -422,13 +433,13 @@ function Approvers(props) {
     validate(action).then((valid) => {
       if (valid) {
         event.preventDefault();
-        resource.forEach((item) => {
+        if (Type.value === "Group") {
           const data = {
             type: Type.value,
-            name: item.label,
+            name: groupName.trim(),
             approvers: approver.map(({ label }) => label),
             groupIds: approver.map(({ value }) => value),
-            id: item.value,
+            id: groupName.trim(),
             ticketNo: ticketNo,
           };
           addApprovers(data).then(() => {
@@ -436,13 +447,35 @@ function Approvers(props) {
             props.addNotification([
               {
                 type: "success",
-                content: "Approvers added successfully",
+                content: "Approver group added successfully",
                 dismissible: true,
                 onDismiss: () => props.addNotification([]),
               },
             ]);
           });
-        });
+        } else {
+          resource.forEach((item) => {
+            const data = {
+              type: Type.value,
+              name: item.label,
+              approvers: approver.map(({ label }) => label),
+              groupIds: approver.map(({ value }) => value),
+              id: item.value,
+              ticketNo: ticketNo,
+            };
+            addApprovers(data).then(() => {
+              views();
+              props.addNotification([
+                {
+                  type: "success",
+                  content: "Approvers added successfully",
+                  dismissible: true,
+                  onDismiss: () => props.addNotification([]),
+                },
+              ]);
+            });
+          });
+        }
       }
     });
   }
@@ -455,6 +488,7 @@ function Approvers(props) {
     setTypeError("");
     setResource("");
     setResourceError("");
+    setGroupName("");
     setApprover([]);
     setApproverError("");
     setTicketNo("");
@@ -571,7 +605,7 @@ function Approvers(props) {
             <FormField
               label="Entity type"
               stretch
-              description="Account or organisation unit"
+              description="Account, Organisation unit or Group"
               errorText={typeError}
             >
               <Select
@@ -585,6 +619,10 @@ function Approvers(props) {
                     label: "Account",
                     value: "Account",
                   },
+                  {
+                    label: "Group",
+                    value: "Group",
+                  }
                 ]}
                 selectedOption={Type}
                 onChange={(event) => {
@@ -636,6 +674,23 @@ function Approvers(props) {
                   action="create"
                   allItems={allItems}
                   />) : <Spinner size="large"/>}
+              </FormField>
+            )}
+            {Type.value === "Group" && (
+              <FormField
+                label="Group name"
+                stretch
+                description="Name for the approver group (used as identifier)"
+                errorText={resourceError}
+              >
+                <Input
+                  value={groupName}
+                  placeholder="Enter group name (e.g. Security Team)"
+                  onChange={(event) => {
+                    setResourceError("");
+                    setGroupName(event.detail.value);
+                  }}
+                />
               </FormField>
             )}
             <FormField

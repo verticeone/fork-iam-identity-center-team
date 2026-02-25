@@ -29,6 +29,7 @@ export const createRequests = /* GraphQL */ `
       ticketNo
       revokeComment
       session_duration
+      policyId
       createdAt
       updatedAt
       owner
@@ -64,6 +65,7 @@ export const updateRequests = /* GraphQL */ `
       ticketNo
       revokeComment
       session_duration
+      policyId
       createdAt
       updatedAt
       owner
@@ -99,6 +101,7 @@ export const deleteRequests = /* GraphQL */ `
       ticketNo
       revokeComment
       session_duration
+      policyId
       createdAt
       updatedAt
       owner
@@ -334,6 +337,7 @@ export const createEligibility = /* GraphQL */ `
         id
         __typename
       }
+      policyIds
       permissions {
         name
         id
@@ -368,6 +372,7 @@ export const updateEligibility = /* GraphQL */ `
         id
         __typename
       }
+      policyIds
       permissions {
         name
         id
@@ -402,6 +407,7 @@ export const deleteEligibility = /* GraphQL */ `
         id
         __typename
       }
+      policyIds
       permissions {
         name
         id
@@ -417,6 +423,114 @@ export const deleteEligibility = /* GraphQL */ `
     }
   }
 `;
+export const createPolicies = /* GraphQL */ `
+  mutation CreatePolicies(
+    $input: CreatePoliciesInput!
+    $condition: ModelPoliciesConditionInput
+  ) {
+    createPolicies(input: $input, condition: $condition) {
+      id
+      accounts {
+        name
+        id
+        __typename
+      }
+      ous {
+        name
+        id
+        __typename
+      }
+      permissions {
+        name
+        id
+        __typename
+      }
+      approvalRequired
+      approverGroupIds {
+        name
+        id
+        __typename
+      }
+      duration
+      modifiedBy
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updatePolicies = /* GraphQL */ `
+  mutation UpdatePolicies(
+    $input: UpdatePoliciesInput!
+    $condition: ModelPoliciesConditionInput
+  ) {
+    updatePolicies(input: $input, condition: $condition) {
+      id
+      accounts {
+        name
+        id
+        __typename
+      }
+      ous {
+        name
+        id
+        __typename
+      }
+      permissions {
+        name
+        id
+        __typename
+      }
+      approvalRequired
+      approverGroupIds {
+        name
+        id
+        __typename
+      }
+      duration
+      modifiedBy
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deletePolicies = /* GraphQL */ `
+  mutation DeletePolicies(
+    $input: DeletePoliciesInput!
+    $condition: ModelPoliciesConditionInput
+  ) {
+    deletePolicies(input: $input, condition: $condition) {
+      id
+      accounts {
+        name
+        id
+        __typename
+      }
+      ous {
+        name
+        id
+        __typename
+      }
+      permissions {
+        name
+        id
+        __typename
+      }
+      approvalRequired
+      approverGroupIds {
+        name
+        id
+        __typename
+      }
+      duration
+      modifiedBy
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
 export const publishPolicy = /* GraphQL */ `
   mutation PublishPolicy($result: PolicyInput) {
     publishPolicy(result: $result) {
@@ -424,6 +538,7 @@ export const publishPolicy = /* GraphQL */ `
       policy {
         approvalRequired
         duration
+        policyIds
         __typename
       }
       username
