@@ -12,6 +12,8 @@ import SpaceBetween from "@awsui/components-react/space-between";
 import Button from "@awsui/components-react/button";
 import Textarea from "@awsui/components-react/textarea";
 import RadioGroup from "@awsui/components-react/radio-group";
+import StatusIndicator from "@awsui/components-react/status-indicator";
+import Box from "@awsui/components-react/box";
 import moment from "moment";
 import { DatePicker } from "antd";
 import "../../index.css";
@@ -24,7 +26,6 @@ import {
   getSetting,
   getMgmtAccountPs,
   fetchPolicy,
-  getPolicy,
   validateRequest,
 } from "../Shared/RequestService";
 import {
@@ -74,6 +75,7 @@ function Request(props) {
   const [legacyItems, setLegacyItems] = useState([]);
 
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [mgmtPs, setMgmtPs] = useState([]);
 
@@ -178,7 +180,7 @@ function Request(props) {
 
   function publishEvent() {
     const subscription = API.graphql(graphqlOperation(onPublishPolicy)).subscribe({
-      next: async (result) => {
+      next: (result) => {
         const policy = result.value.data.onPublishPolicy.policy;
         if (policy?.length > 0) {
           setItem(policy);
@@ -190,15 +192,11 @@ function Request(props) {
           );
           setLegacyItems(legacy);
 
-          // Get unique policyIds from policy-based items
-          const allPolicyIds = [...new Set(
-            policy
-              .filter(item => item.policyIds?.length > 0)
-              .flatMap(item => item.policyIds)
-          )];
+          // Get policy-based items (have policyIds)
+          const policyBasedItems = policy.filter(item => item.policyIds?.length > 0);
 
           const hasLegacy = legacy.length > 0;
-          const hasPolicyBased = allPolicyIds.length > 0;
+          const hasPolicyBased = policyBasedItems.length > 0;
 
           if (hasLegacy && hasPolicyBased) {
             setShowEligibilityChoice(true);
@@ -215,37 +213,37 @@ function Request(props) {
             setShowEligibilityChoice(false);
           }
 
-          // If EligibilityMode.POLICY_BASED, fetch policy details and build map
+          // Build policy map directly from subscription data (accounts already resolved by backend)
           if (hasPolicyBased) {
-            try {
-              const policyDetails = await Promise.all(
-                allPolicyIds.map(id => getPolicy(id))
-              );
+            const map = {};
+            const policyList = [];
 
-              const validPolicies = policyDetails.filter(p => p !== null && p !== undefined);
-              setPolicies(validPolicies);
-
-              // Build policy map: { policyId: { accounts, ous, permissions, duration } }
-              const map = {};
-              validPolicies.forEach(p => {
-                map[p.id] = {
-                  accounts: p.accounts || [],
-                  ous: p.ous || [],
-                  permissions: p.permissions || [],
-                  duration: p.duration
+            policyBasedItems.forEach(item => {
+              const policyId = item.policyIds[0]; // Each item has one policyId
+              if (policyId && !map[policyId]) {
+                map[policyId] = {
+                  accounts: item.accounts || [],
+                  permissions: item.permissions || [],
+                  duration: item.duration,
+                  approverGroupIds: item.approverGroupIds || [],
+                  approvalRequired: item.approvalRequired
                 };
-              });
-              setPolicyMap(map);
-              setPoliciesStatus("finished");
-            } catch (error) {
-              console.error("Error fetching policies:", error);
-              setPoliciesError("Failed to load policies");
-              setPoliciesStatus("error");
-            }
+                policyList.push({
+                  id: policyId,
+                  accounts: item.accounts || [],
+                  permissions: item.permissions || []
+                });
+              }
+            });
+
+            setPolicyMap(map);
+            setPolicies(policyList);
+            setPoliciesStatus("finished");
           }
         }
         setAccountStatus("finished");
         setPermissionStatus("finished");
+        setInitialLoading(false);
         subscription.unsubscribe();
       },
       error: (error) => {
@@ -253,6 +251,7 @@ function Request(props) {
         setAccountStatus("error");
         setPermissionStatus("error");
         setPoliciesStatus("error");
+        setInitialLoading(false);
         subscription.unsubscribe();
       }
     });
@@ -357,10 +356,13 @@ function Request(props) {
   }
 
   function sendError() {
+    const errorMessage = eligibilityType === EligibilityMode.POLICY_BASED
+      ? `No approver configured for policy - ${selectedPolicy?.label || 'Unknown'}`
+      : `No approver for Account - ${account.label}`;
     props.addNotification([
       {
         type: "error",
-        content: `No approver for Account - ${account.label}`,
+        content: errorMessage,
         dismissible: true,
         onDismiss: () => props.addNotification([]),
       },
@@ -458,41 +460,74 @@ function Request(props) {
     return false;
   }
   async function checkApprovalAndApproverGroups(account, role) {
-    if (await checkApprovalNotRequired(account, role)) {
+    let approverGroupIds = null;
+    let approvalNotRequired = false;
+
+    // Policy-based: load groupIds from policy's approverGroupIds
+    if (eligibilityType === EligibilityMode.POLICY_BASED && selectedPolicy) {
+      const policyData = policyMap[selectedPolicy.value];
+      if (policyData) {
+        approvalNotRequired = !policyData.approvalRequired;
+        if (policyData.approverGroupIds && policyData.approverGroupIds.length > 0) {
+          approverGroupIds = [];
+          for (const approverRecord of policyData.approverGroupIds) {
+            const approverData = await fetchApprovers(approverRecord.id, null);
+            if (approverData && approverData.groupIds) {
+              approverGroupIds.push(...approverData.groupIds);
+            }
+          }
+        }
+      }
+    } else {
+      // Legacy: load from account/OU
+      approvalNotRequired = await checkApprovalNotRequired(account, role);
+      const account_approvers = await fetchApprovers(account, "Account");
+      if (account_approvers) {
+        approverGroupIds = account_approvers.groupIds;
+      } else {
+        const ou = await fetchOU(account);
+        const ou_approvers = await fetchApprovers(ou.Id, "OU");
+        if (ou_approvers) {
+          approverGroupIds = ou_approvers.groupIds;
+        }
+      }
+    }
+
+    // Common logic for both flows
+    if (approvalNotRequired) {
       return true;
     }
-    const account_approvers = await fetchApprovers(account, "Account");
-    if (account_approvers) {
-      const data = await getGroupMemberships(account_approvers.groupIds);
-      const requesterIsApprover = checkGroupMembership(
-        props.groupIds,
-        account_approvers.groupIds
-      );
-      // If the requester is also an approver, then we need at least 2 approvers to exist (i.e. at
-      // least one person who didn't make the request). Otherwise we only need a single approver to exist.
-      const approverGroupMembersRequired = requesterIsApprover ? 2 : 1;
-
-      if (data.members.length >= approverGroupMembersRequired) {
-        return true;
-      }
+    if (!approverGroupIds || approverGroupIds.length === 0) {
+      return false;
     }
-    const ou = await fetchOU(account);
-    const ou_approvers = await fetchApprovers(ou.Id, "OU");
-    if (ou_approvers) {
-      const data = await getGroupMemberships(ou_approvers.groupIds);
-      const requesterIsApprover = checkGroupMembership(
-        props.groupIds,
-        ou_approvers.groupIds
-      );
-      // If the requester is also an approver, then we need at least 2 approvers to exist (i.e. at
-      // least one person who didn't make the request). Otherwise we only need a single approver to exist.
-      const approverGroupMembersRequired = requesterIsApprover ? 2 : 1;
+    const data = await getGroupMemberships(approverGroupIds);
+    const requesterIsApprover = checkGroupMembership(props.groupIds, approverGroupIds);
+    // If requester is also an approver, need at least 2 members (someone else to approve)
+    const approverGroupMembersRequired = requesterIsApprover ? 2 : 1;
+    return data.members.length >= approverGroupMembersRequired;
+  }
 
-      if (data.members.length >= approverGroupMembersRequired) {
-        return true;
-      }
-    }
-    return false;
+  if (initialLoading) {
+    return (
+      <div className="container">
+        <Container
+          header={
+            <Header
+              variant="h2"
+              description="Request temporary elevated access"
+            >
+              Elevated access request
+            </Header>
+          }
+        >
+          <Box textAlign="center" padding="xxl">
+            <StatusIndicator type="loading">
+              Loading your eligibility policies...
+            </StatusIndicator>
+          </Box>
+        </Container>
+      </div>
+    );
   }
 
   return (

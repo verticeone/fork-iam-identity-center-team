@@ -89,6 +89,6 @@
         "hostedUIProviderCreds": "[]",
         "adminQueryGroup": "Admin",
         "authTriggerConnections": "[\n  {\n    \"triggerType\": \"PreTokenGeneration\",\n    \"lambdaFunctionName\": \"team06dbb7fcPreTokenGeneration\"\n  }\n]",
-        "oAuthMetadata": "{\"AllowedOAuthFlows\":[\"code\"],\"AllowedOAuthScopes\":[\"phone\",\"email\",\"openid\",\"profile\",\"aws.cognito.signin.user.admin\"],\"CallbackURLs\":[\"https://main.dc59womyttgi1.amplifyapp.com/\"],\"LogoutURLs\":[\"https://main.dc59womyttgi1.amplifyapp.com/\"]}"
+        "oAuthMetadata": "{\"AllowedOAuthFlows\":[\"code\"],\"AllowedOAuthScopes\":[\"phone\",\"email\",\"openid\",\"profile\",\"aws.cognito.signin.user.admin\"],\"CallbackURLs\":[\"https://sandbox.dvsbeifiul6w3.amplifyapp.com/\"],\"LogoutURLs\":[\"https://sandbox.dvsbeifiul6w3.amplifyapp.com/\"]}"
     }
 }

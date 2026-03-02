@@ -4,15 +4,16 @@
 # Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from botocore.exceptions import ClientError
 import boto3
 import requests
 from requests_aws_sign import AWSV4Sign
-from botocore.exceptions import ClientError
 
-policy_table_name = os.getenv("POLICY_TABLE_NAME")
+eligibility_table_name = os.getenv("POLICY_TABLE_NAME")  # Legacy name for Eligibility table
+policies_table_name = os.getenv("POLICIES_TABLE_NAME")
 settings_table_name = os.getenv("SETTINGS_TABLE_NAME")
 dynamodb = boto3.resource("dynamodb")
-policy_table = dynamodb.Table(policy_table_name)
 settings_table = dynamodb.Table(settings_table_name)
 
 ACCOUNT_ID = os.environ.get("ACCOUNT_ID", "")
@@ -29,7 +30,7 @@ def get_mgmt_account_id():
         return None
 
 
-mgmt_account_id = get_mgmt_account_id()
+mgmt_account_id = None
 
 
 def get_settings():
@@ -64,6 +65,10 @@ def publishPolicy(result):
                 approvalRequired
                 duration
                 policyIds
+                approverGroupIds {
+                name
+                id
+                }
             }
             username
             }
@@ -98,7 +103,7 @@ def get_ou_accounts(ou_ids):
     """Get accounts for multiple OUs using cached GraphQL query"""
     if not ou_ids:
         return []
-    
+
     session = boto3.session.Session()
     credentials = session.get_credentials()
     credentials = credentials.get_frozen_credentials()
@@ -123,15 +128,15 @@ def get_ou_accounts(ou_ids):
     headers = {"Content-Type": "application/json"}
     appsync_region = region
     auth = AWSV4Sign(credentials, appsync_region, "appsync")
-    
+
     all_accounts = []
     batch_size = 20
-    
+
     # Process in batches of 20
     for i in range(0, len(ou_ids), batch_size):
         batch = ou_ids[i:i + batch_size]
         payload = {"query": query, "variables": {"ouIds": batch}}
-        
+
         try:
             response = requests.post(
                 endpoint, auth=auth, json=payload, headers=headers
@@ -140,33 +145,29 @@ def get_ou_accounts(ou_ids):
                 print(f"Error querying OU accounts batch {i//batch_size + 1}")
                 print(response["errors"])
                 continue
-            
+
             results = response.get("data", {}).get("getOUAccounts", {}).get("results", [])
-            
+
             # Flatten accounts from this batch
             for result in results:
                 accounts = result.get("accounts", [])
                 all_accounts.extend(accounts)
                 cached_status = "cached" if result.get("cached") else "fetched"
                 print(f"OU {result.get('ouId')}: {len(accounts)} accounts ({cached_status})")
-        
+
         except Exception as exception:
             print(f"Error calling getOUAccounts batch {i//batch_size + 1}")
             print(exception)
             continue
-    
+
     return all_accounts
 
 
 def list_account_for_ou(ou_id):
-    """
-    Original implementation: Direct Organizations API call for OU accounts.
-    Used when useOUCache feature flag is disabled.
-    """
     deployed_in_mgmt = True if ACCOUNT_ID == mgmt_account_id else False
     accounts = []
     client = boto3.client("organizations")
-    
+
     try:
         paginator = client.get_paginator("list_accounts_for_parent")
         page_iterator = paginator.paginate(ParentId=ou_id)
@@ -177,7 +178,7 @@ def list_account_for_ou(ou_id):
                 if not deployed_in_mgmt and acct["Id"] == mgmt_account_id:
                     continue
                 accounts.append({"name": acct["Name"], "id": acct["Id"]})
-        
+
         print(f"OU {ou_id}: {len(accounts)} accounts (direct API)")
         return accounts
     except ClientError as e:
@@ -185,58 +186,162 @@ def list_account_for_ou(ou_id):
         return []
 
 
-def get_entitlements(id):
-    response = policy_table.get_item(Key={"id": id})
-    return response
+def get_entitlements(ids):
+    eligibility_keys = [{'id': entity_id} for entity_id in ids if entity_id]
+    if not eligibility_keys:
+        return []
+
+    all_items = []
+    batch_size = 100
+
+    # Process in chunks of 100 (DynamoDB batch_get_item limit)
+    for i in range(0, len(eligibility_keys), batch_size):
+        batch_keys = eligibility_keys[i:i + batch_size]
+
+        request_items = {
+            eligibility_table_name: {
+                'Keys': batch_keys
+            }
+        }
+
+        # Handle UnprocessedKeys with retry
+        while request_items:
+            response = dynamodb.batch_get_item(RequestItems=request_items)
+            all_items.extend(response.get('Responses', {}).get(eligibility_table_name, []))
+            request_items = response.get('UnprocessedKeys', {})
+
+    return all_items
+
+
+def get_policies(policy_ids):
+    """Fetch policies by IDs from DynamoDB with batching and retry."""
+    if not policy_ids:
+        return []
+
+    policy_keys = [{'id': policy_id} for policy_id in policy_ids if policy_id]
+    if not policy_keys:
+        return []
+
+    all_items = []
+    batch_size = 100
+
+    for i in range(0, len(policy_keys), batch_size):
+        batch_keys = policy_keys[i:i + batch_size]
+
+        request_items = {
+            policies_table_name: {
+                'Keys': batch_keys
+            }
+        }
+
+        while request_items:
+            response = dynamodb.batch_get_item(RequestItems=request_items)
+            all_items.extend(response.get('Responses', {}).get(policies_table_name, []))
+            request_items = response.get('UnprocessedKeys', {})
+
+    return all_items
+
+
+def resolve_all_ous_to_accounts(ou_ids):
+    """Resolve all unique OUs to accounts map using parallel execution."""
+    global mgmt_account_id
+    if not ou_ids:
+        return {}
+
+    # Initialize mgmt_account_id before parallel execution
+    if mgmt_account_id is None:
+        mgmt_account_id = get_mgmt_account_id()
+
+    # Use ThreadPoolExecutor for parallel OU resolution
+    # max_workers=5 balances parallelism with AWS API rate limits
+    ou_accounts_map = {}
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        # Create list of (ou_id, future) pairs
+        future_to_ou = {executor.submit(list_account_for_ou, ou_id): ou_id for ou_id in ou_ids}
+        for future in future_to_ou:
+            ou_id = future_to_ou[future]
+            result = future.result()
+            ou_accounts_map[ou_id] = result if result else []
+
+    return ou_accounts_map
+
+
+def build_policy_entry(source, ou_accounts_map, policy_id=None):
+    """Build policy entry from either Policy or Entitlement data."""
+    accounts = list(source.get("accounts", []))
+
+    # Resolve OUs from pre-fetched map
+    ous = source.get("ous", [])
+    for ou in ous:
+        ou_accounts = ou_accounts_map.get(ou["id"], [])
+        accounts.extend(ou_accounts)
+
+    # Deduplicate accounts by id (same account can be in both accounts list and OUs)
+    seen_ids = set()
+    unique_accounts = []
+    for account in accounts:
+        if account["id"] not in seen_ids:
+            seen_ids.add(account["id"])
+            unique_accounts.append(account)
+
+    return {
+        "accounts": unique_accounts,
+        "permissions": source.get("permissions", []),
+        "approvalRequired": source.get("approvalRequired", True),
+        "duration": str(source.get("duration", 0)),
+        "policyIds": [policy_id] if policy_id else [],
+        "approverGroupIds": source.get("approverGroupIds", [])
+    }
 
 
 def handler(event, context):
     userId = event["userId"]
     groupIds = event["groupIds"]
     username = event["username"]
-    eligibility = []
-    maxDuration = 0
-    
+
     print("Id: ", event["id"])
-    
+
+    entitlements = get_entitlements([userId] + groupIds)
+
+    # Collect and fetch all policies at once
+    all_policy_ids = {pid for e in entitlements for pid in e.get("policyIds", [])}
+    policies_map = {p["id"]: p for p in get_policies(list(all_policy_ids))} if all_policy_ids else {}
+
+    # Collect all unique OU IDs from entitlements and policies
+    all_ou_ids = set()
+    for entitlement in entitlements:
+        for ou in entitlement.get("ous", []):
+            all_ou_ids.add(ou["id"])
+    for policy in policies_map.values():
+        for ou in policy.get("ous", []):
+            all_ou_ids.add(ou["id"])
+
     # Get feature flag setting
     settings = get_settings()
     use_ou_cache = settings.get("useOUCache", False)  # Default to False (direct API)
     print(f"Using OU cache: {use_ou_cache}")
 
-    for id in [userId] + groupIds:
-        if not id:
-            continue
-        entitlement = get_entitlements(id)
-        print(entitlement)
-        if "Item" not in entitlement.keys():
-            continue
-        duration = entitlement["Item"]["duration"]
-        if int(duration) > maxDuration:
-            maxDuration = int(duration)
-        policy = {}
-        policy["accounts"] = entitlement["Item"]["accounts"]
-        policy["policyIds"] = entitlement["Item"]["policyIds"] if "policyIds" in entitlement["Item"] else []
+    ou_accounts_map = []
+    # Resolve all OUs at once (parallel)
+    if use_ou_cache:
+        ou_accounts_map = get_ou_accounts(all_ou_ids)
+    else:
+        ou_accounts_map = resolve_all_ous_to_accounts(all_ou_ids)
 
-        # Get OU accounts based on feature flag
-        ou_ids = [ou["id"] for ou in entitlement["Item"]["ous"]]
-        
-        if ou_ids:
-            if use_ou_cache:
-                # New implementation: Use cached GraphQL query
-                ou_accounts = get_ou_accounts(ou_ids)
-                policy["accounts"].extend(ou_accounts)
-            else:
-                # Original implementation: Direct Organizations API calls
-                for ou_id in ou_ids:
-                    ou_accounts = list_account_for_ou(ou_id)
-                    policy["accounts"].extend(ou_accounts)
+    eligibility = []
+    for entitlement in entitlements:
+        policy_ids = entitlement.get("policyIds", [])
 
-        policy["permissions"] = entitlement["Item"]["permissions"]
-        policy["approvalRequired"] = entitlement["Item"]["approvalRequired"]
-        policy["duration"] = str(maxDuration)
-        eligibility.append(policy)
-    result = {"id": event["id"], "policy": eligibility, "username":username}
+        if policy_ids:
+            # Policy-based: entry for each policy
+            for policy_id in policy_ids:
+                if policy_id in policies_map:
+                    eligibility.append(build_policy_entry(policies_map[policy_id], ou_accounts_map, policy_id))
+        else:
+            # Legacy: entry from entitlement
+            eligibility.append(build_policy_entry(entitlement, ou_accounts_map))
+
+    result = {"id": event["id"], "policy": eligibility, "username": username}
     print(result)
 
     return publishPolicy(result)

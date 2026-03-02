@@ -179,6 +179,7 @@ type Settings
   slackToken: String
   teamAdminGroup: String
   teamAuditorGroup: String
+  allowLegacyEligibility: Boolean
   useOUCache: Boolean
 }
 type data @aws_iam @aws_cognito_user_pools {
@@ -270,6 +271,7 @@ type Entitlement @aws_iam @aws_cognito_user_pools {
   approvalRequired: Boolean
   duration: String
   policyIds: [String]
+  approverGroupIds: [data]
 }
 
 input EntitlementInput {
@@ -278,6 +280,7 @@ input EntitlementInput {
   approvalRequired: Boolean
   duration: String
   policyIds: [String]
+  approverGroupIds: [DataInput]
 }
 
 type IdCGroups {

@@ -254,6 +254,7 @@ export const createSettings = /* GraphQL */ `
       slackToken
       teamAdminGroup
       teamAuditorGroup
+      allowLegacyEligibility
       useOUCache
       createdAt
       updatedAt
@@ -283,6 +284,7 @@ export const updateSettings = /* GraphQL */ `
       slackToken
       teamAdminGroup
       teamAuditorGroup
+      allowLegacyEligibility
       useOUCache
       createdAt
       updatedAt
@@ -312,6 +314,7 @@ export const deleteSettings = /* GraphQL */ `
       slackToken
       teamAdminGroup
       teamAuditorGroup
+      allowLegacyEligibility
       createdAt
       updatedAt
       __typename
@@ -536,9 +539,24 @@ export const publishPolicy = /* GraphQL */ `
     publishPolicy(result: $result) {
       id
       policy {
+        accounts {
+          name
+          id
+          __typename
+        }
+        permissions {
+          name
+          id
+          __typename
+        }
         approvalRequired
         duration
         policyIds
+        approverGroupIds {
+          name
+          id
+          __typename
+        }
         __typename
       }
       username

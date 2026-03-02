@@ -23,7 +23,9 @@ import {
     Toggle,
     Input,
     Spinner,
-    RadioGroup
+    RadioGroup,
+    Icon,
+    Grid
 } from "@awsui/components-react";
 import {useCollection} from "@awsui/collection-hooks";
 import Ous from "../Shared/Ous";
@@ -76,6 +78,24 @@ const COLUMN_DEFINITIONS = [
         header: "TicketNo",
         cell: (item) => item.ticketNo || "-",
         width: 130,
+    },
+    {
+        id: "policyId",
+        sortingField: "policyId",
+        header: "Policy",
+        cell: (item) => {
+            if (!item.policyId) return "legacy";
+            if (item.corrupted) {
+                return (
+                    <SpaceBetween direction="horizontal" size="xs">
+                        <Icon name="status-warning" variant="warning" />
+                        <span>{item.policyId}</span>
+                    </SpaceBetween>
+                );
+            }
+            return item.policyId;
+        },
+        width: 200,
     },
     {
         id: "accounts",
@@ -139,13 +159,6 @@ const COLUMN_DEFINITIONS = [
         header: "Approval required",
         cell: (item) => item.approvalRequired ? "Yes" : "No",
         width: 130,
-    },
-    {
-        id: "policyId",
-        sortingField: "policyId",
-        header: "Policy",
-        cell: (item) => item.policyId || "-",
-        width: 200,
     },
 ];
 
@@ -218,6 +231,7 @@ function Eligible(props) {
             // "id",
             "name",
             "type",
+            "policyId",
             "ticketNo",
             "accounts",
             "ous",
@@ -307,6 +321,7 @@ function Eligible(props) {
     const [confirmLoading, setConfirmLoading] = useState(false);
     const [submitLoading, setSubmitLoading] = useState(false);
     const [tableLoading, setTableLoading] = useState(true);
+    const [refreshLoading, setRefreshLoading] = useState(false);
     const [visible, setVisible] = useState(false);
     const [deleteVisible, setDeleteVisible] = useState(false);
     const [editVisible, setEditVisible] = useState(false);
@@ -330,6 +345,8 @@ function Eligible(props) {
     const [policiesError, setPoliciesError] = useState("");
     const [selectedPolicies, setSelectedPolicies] = useState([]);
     const [eligibilityMode, setEligibilityMode] = useState(DEFAULT_ELIGIBILITY_MODE);
+    const [rawEligibilities, setRawEligibilities] = useState([]);
+    const [allowLegacyEligibility, setAllowLegacyEligibility] = useState(true);
 
     const [accounts, setAccounts] = useState([]);
     const [accountStatus, setAccountStatus] = useState("finished");
@@ -354,8 +371,20 @@ function Eligible(props) {
         getOUs()
         getAccounts();
         getPermissions();
+        loadSettings();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    function loadSettings() {
+        getSetting("settings").then((data) => {
+            const legacyAllowed = data?.allowLegacyEligibility ?? true;
+            setAllowLegacyEligibility(legacyAllowed);
+            // If legacy is not allowed and current mode is legacy, switch to policy-based
+            if (!legacyAllowed && eligibilityMode === EligibilityMode.LEGACY) {
+                setEligibilityMode(EligibilityMode.POLICY_BASED);
+            }
+        });
+    }
 
     function views() {
         setPoliciesStatus("loading");
@@ -374,25 +403,25 @@ function Eligible(props) {
             } else {
                 setPolicies(policies)
                 setPoliciesStatus("finished")
+                setRawEligibilities(eligibility)
                 eligibility.forEach((item) => {
                     if (item.policyIds?.length > 0) {
                         item.policyIds.forEach((policyId) => {
                             const policyFound = policies.find(p => p.id === policyId)
-                            if (policyFound) {
-                                expandedItems.push({
-                                    id: item.id,
-                                    name: item.name,
-                                    type: item.type,
-                                    ticketNo: item.ticketNo,
-                                    policyId: policyId,
-                                    policyIds: item.policyIds,
-                                    accounts: policyFound.accounts,
-                                    ous: policyFound.ous,
-                                    permissions: policyFound.permissions,
-                                    duration: policyFound.duration,
-                                    approvalRequired: policyFound.approvalRequired,
-                                })
-                            }
+                            expandedItems.push({
+                                id: item.id,
+                                name: item.name,
+                                type: item.type,
+                                ticketNo: item.ticketNo,
+                                policyId: policyId,
+                                policyIds: item.policyIds,
+                                accounts: policyFound?.accounts || [],
+                                ous: policyFound?.ous || [],
+                                permissions: policyFound?.permissions || [],
+                                duration: policyFound?.duration || "N/A",
+                                approvalRequired: policyFound?.approvalRequired || false,
+                                corrupted: !policyFound,
+                            })
                         })
                     } else {
                         expandedItems.push(item)
@@ -401,6 +430,7 @@ function Eligible(props) {
                 setAllItems(expandedItems)
                 }
         setTableLoading(false);
+        setRefreshLoading(false);
         setConfirmLoading(false);
         setSubmitLoading(false);
         setVisible(false);
@@ -408,6 +438,29 @@ function Eligible(props) {
         handleDismiss();
         getSettings()
         })
+    }
+
+    function handleRefresh() {
+        setRefreshLoading(true);
+        setTableLoading(true);
+        props.addNotification([]);
+        views();
+    }
+
+    function refreshPolicies() {
+        setPoliciesStatus("loading");
+        return getAllPolicies().then((data) => {
+            if (data.error) {
+                setPoliciesError(data.error.message);
+                return [];
+            } else {
+                setPolicies(data);
+                setPoliciesError("");
+                return data;
+            }
+        }).finally(() => {
+            setPoliciesStatus("finished");
+        });
     }
 
     function handleAdd() {
@@ -454,77 +507,113 @@ function Eligible(props) {
         validate(action).then((valid) => {
             if (valid) {
                 setConfirmLoading(true);
-                const data = {
-                    id: selectedItems[0].id,
-                    accounts: account.map(({value, label}) => ({name: label, id: value})),
-                    permissions: permission.map(({value, label}) => ({name: label, id: value})),
-                    ous: ou.map(({value, label}) => ({name: label, id: value})),
-                    policyIds: selectedPolicies.map(({value}) => value),
-                    ticketNo: ticketNo,
-                    approvalRequired: approvalRequired,
-                    duration: duration
-                };
-                editPolicy(data).then(() => {
-                    views();
-                    props.addNotification([
-                        {
-                            type: "success",
-                            content: `Eligibility policy updated successfully`,
-                            dismissible: true,
-                            onDismiss: () => props.addNotification([]),
-                        },
-                    ]);
+                let data;
+                if (eligibilityMode === EligibilityMode.POLICY_BASED) {
+                    // Policy-based: policyIds and ticketNo, other fields come from policy
+                    data = {
+                        id: selectedItems[0].id,
+                        policyIds: selectedPolicies.map(({value}) => value),
+                        ticketNo: ticketNo,
+                        // Default values (same as create)
+                        accounts: [],
+                        permissions: [],
+                        ous: [],
+                        approvalRequired: false,
+                        duration: "0"
+                    };
+                } else {
+                    // Legacy: store all fields directly
+                    data = {
+                        id: selectedItems[0].id,
+                        accounts: account.map(({value, label}) => ({name: label, id: value})),
+                        permissions: permission.map(({value, label}) => ({name: label, id: value})),
+                        ous: ou.map(({value, label}) => ({name: label, id: value})),
+                        policyIds: [],
+                        ticketNo: ticketNo,
+                        approvalRequired: approvalRequired,
+                        duration: duration
+                    };
+                }
+                console.log("Saving eligibility with data:", data);
+                editPolicy(data).then((result) => {
+                    console.log("editPolicy result:", result);
+                    if (result) {
+                        views();
+                        props.addNotification([
+                            {
+                                type: "success",
+                                content: `Eligibility policy updated successfully`,
+                                dismissible: true,
+                                onDismiss: () => props.addNotification([]),
+                            },
+                        ]);
+                    } else {
+                        setConfirmLoading(false);
+                        props.addNotification([
+                            {
+                                type: "error",
+                                content: `Failed to update eligibility policy`,
+                                dismissible: true,
+                                onDismiss: () => props.addNotification([]),
+                            },
+                        ]);
+                    }
                 });
             }
         });
     }
 
     function handleEdit() {
+        // Determine if this is policy-based or legacy eligibility
+        const isPolicyBased = selectedItems[0].policyIds && selectedItems[0].policyIds.length > 0;
+        setEligibilityMode(isPolicyBased ? EligibilityMode.POLICY_BASED : EligibilityMode.LEGACY);
+
+        // Set common fields
+        setTicketNo(selectedItems[0].ticketNo || "");
+
+        // Set legacy fields (will be empty for policy-based)
         setAccount(
-            selectedItems[0].accounts.map((data) => {
-                return {
-                    label: data.name,
-                    value: data.id,
-                    description: data.id,
-                };
-            })
+            selectedItems[0].accounts?.map((data) => ({
+                label: data.name,
+                value: data.id,
+                description: data.id,
+            })) || []
         );
         setOU(
-            selectedItems[0].ous.map((data) => {
-                return {
-                    label: data.name,
-                    value: data.id,
-                    description: data.id,
-                };
-            })
+            selectedItems[0].ous?.map((data) => ({
+                label: data.name,
+                value: data.id,
+                description: data.id,
+            })) || []
         );
         setPermission(
-            selectedItems[0].permissions.map((data) => {
-                return {
-                    label: data.name,
-                    value: data.id,
-                    description: data.id,
-                };
-            })
+            selectedItems[0].permissions?.map((data) => ({
+                label: data.name,
+                value: data.id,
+                description: data.id,
+            })) || []
         );
-        setSelectedPolicies(
-            selectedItems[0].policyIds?.map((policyId) => {
-                const policyFound = policies.find(p => p.id === policyId)
-                return {
-                    label: policyId,
-                    value: policyId,
-                    description: policyFound
-                        ? `Accounts: ${policyFound.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policyFound.permissions?.map(p => p.name).join(", ") || "-"}`
-                        : policyId,
-                };
-            }) || []
-        )
-        setApprovalRequired(
-            selectedItems[0].approvalRequired
-        );
-        setDuration(
-            selectedItems[0].duration
-        );
+        setApprovalRequired(selectedItems[0].approvalRequired);
+        setDuration(selectedItems[0].duration);
+
+        if (isPolicyBased) {
+            // Policy-based: set selected policies from existing data
+            setSelectedPolicies(
+                selectedItems[0].policyIds?.map((policyId) => {
+                    const policyFound = policies.find(p => p.id === policyId);
+                    return {
+                        label: policyId,
+                        value: policyId,
+                        description: policyFound
+                            ? `Accounts: ${policyFound.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policyFound.permissions?.map(p => p.name).join(", ") || "-"}`
+                            : policyId,
+                    };
+                }) || []
+            );
+        } else {
+            // Legacy: clear policies
+            setSelectedPolicies([]);
+        }
         setEditVisible(true);
     }
 
@@ -598,6 +687,12 @@ function Eligible(props) {
     async function validate(action) {
         let valid = true;
 
+        // Prevent creating new legacy eligibility when disabled (only for new entries, not edits)
+        if (action === "submit" && eligibilityMode === EligibilityMode.LEGACY && !allowLegacyEligibility) {
+            setResourceError("Legacy eligibility creation is disabled. Use policy-based eligibility or enable legacy mode in Settings.");
+            return false;
+        }
+
         // Common validations
         if ((!ticketNo && ticketRequired) || !(/^[a-zA-Z0-9]+$/.test(ticketNo[0]))) {
             setTicketError("Enter valid change management ticket number");
@@ -635,6 +730,37 @@ function Eligible(props) {
                 valid = false;
             }
         }
+
+        // Check for conflicts between legacy and policy-based eligibility
+        if (action === "submit" && resource && resource.length > 0) {
+            for (const selectedResource of resource) {
+                const existingEligibility = rawEligibilities.find(e => e.id === selectedResource.value);
+                if (existingEligibility) {
+                    const isExistingLegacy = !existingEligibility.policyIds || existingEligibility.policyIds.length === 0;
+                    const isNewLegacy = eligibilityMode === EligibilityMode.LEGACY;
+
+                    if (isExistingLegacy && !isNewLegacy) {
+                        valid = false;
+                        setResourceError(`"${selectedResource.label}" already has a legacy eligibility. Delete it first to create policy-based.`);
+                        break;
+                    } else if (!isExistingLegacy && isNewLegacy) {
+                        valid = false;
+                        setResourceError(`"${selectedResource.label}" already has a policy-based eligibility. Delete it first to create legacy.`);
+                        break;
+                    } else if (isExistingLegacy && isNewLegacy) {
+                        valid = false;
+                        setResourceError(`"${selectedResource.label}" already has a legacy eligibility. Use Edit to modify it.`);
+                        break;
+                    } else {
+                        // Both policy-based - could allow adding more policies via Edit
+                        valid = false;
+                        setResourceError(`"${selectedResource.label}" already has a policy-based eligibility. Use Edit to add more policies.`);
+                        break;
+                    }
+                }
+            }
+        }
+
         return valid;
     }
 
@@ -741,7 +867,11 @@ function Eligible(props) {
                         }
                         actions={
                             <SpaceBetween size="s" direction="horizontal">
-                                <Button iconName="refresh"/>
+                                <Button
+                                    iconName="refresh"
+                                    onClick={handleRefresh}
+                                    loading={refreshLoading}
+                                />
                                 <ButtonDropdown
                                     items={[
                                         {
@@ -766,7 +896,7 @@ function Eligible(props) {
                             </SpaceBetween>
                         }
                     >
-                        Eligibility policy
+                        Eligibility groups
                     </Header>
                 }
                 filter={
@@ -922,7 +1052,10 @@ function Eligible(props) {
                         <FormField
                             label="Eligibility mode"
                             stretch
-                            description="Choose how to define access permissions"
+                            description={allowLegacyEligibility
+                                ? "Choose how to define access permissions"
+                                : "Legacy mode is disabled. To enable it, change the setting in Settings."
+                            }
                         >
                             <RadioGroup
                                 onChange={({detail}) => {
@@ -935,45 +1068,55 @@ function Eligible(props) {
                                     setDurationError("");
                                 }}
                                 value={eligibilityMode}
-                                items={ELIGIBILITY_MODE_OPTIONS}
+                                items={ELIGIBILITY_MODE_OPTIONS.map(opt => ({
+                                    ...opt,
+                                    disabled: opt.value === EligibilityMode.LEGACY && !allowLegacyEligibility
+                                }))}
                             />
                         </FormField>
-                        {eligibilityMode === EligibilityMode.POLICY_BASED && policies.length > 0 && (
+                        {eligibilityMode === EligibilityMode.POLICY_BASED && (
                             <FormField
                                 label="Policies"
                                 stretch
                                 description="The policies that user can request elevated access from."
                                 errorText={policiesError}
                             >
-                                <Multiselect
-                                    statusType={policiesStatus}
-                                    placeholder="Select policies"
-                                    loadingText="Loading policies"
-                                    filteringType="auto"
-                                    empty="No options"
-                                    options={policies.map((policy) => ({
-                                        label: policy.id,
-                                        value: policy.id,
-                                        description: `Accounts: ${policy.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policy.permissions?.map(p => p.name).join(", ") || "-"}`,
-                                    }))}
-                                    selectedOptions={selectedPolicies}
-                                    onChange={({detail}) => {
-                                        setPoliciesError("");
-                                        setSelectedPolicies(detail.selectedOptions);
-                                    }}
-                                    selectedAriaLabel="selected"
-                                    deselectAriaLabel={(e) => `Remove ${e.label}`}
-                                />
-                            </FormField>
-                        )}
-                        {eligibilityMode === EligibilityMode.POLICY_BASED && policies.length === 0 && (
-                            <FormField
-                                label="Policies"
-                                stretch
-                            >
-                                <Box color="text-status-warning">
-                                    No policy templates available. Please create policies first in the Policies section.
-                                </Box>
+                                <SpaceBetween direction="vertical" size="xs">
+                                    <Grid gridDefinition={[{ colspan: 11 }, { colspan: 1 }]}>
+                                        <Multiselect
+                                            statusType={policiesStatus}
+                                            placeholder="Select policies"
+                                            loadingText="Loading policies"
+                                            filteringType="auto"
+                                            empty="No policies available"
+                                            options={policies.map((policy) => ({
+                                                label: policy.id,
+                                                value: policy.id,
+                                                description: `Accounts: ${policy.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policy.permissions?.map(p => p.name).join(", ") || "-"}`,
+                                            }))}
+                                            selectedOptions={selectedPolicies}
+                                            onChange={({detail}) => {
+                                                setPoliciesError("");
+                                                setSelectedPolicies(detail.selectedOptions);
+                                            }}
+                                            selectedAriaLabel="selected"
+                                            deselectAriaLabel={(e) => `Remove ${e.label}`}
+                                        />
+                                        <Button
+                                            iconName="refresh"
+                                            onClick={refreshPolicies}
+                                            loading={policiesStatus === "loading"}
+                                        />
+                                    </Grid>
+                                    <Button
+                                        iconName="external"
+                                        iconAlign="right"
+                                        variant="link"
+                                        onClick={() => window.open("/admin/policies", "_blank")}
+                                    >
+                                        Create new policy
+                                    </Button>
+                                </SpaceBetween>
                             </FormField>
                         )}
 
@@ -1183,149 +1326,151 @@ function Eligible(props) {
                                 }}
                             />
                         </FormField>
-                        {policies.length > 0 && (
+                        {eligibilityMode === EligibilityMode.POLICY_BASED && (
                             <FormField
                                 label="Policies"
                                 stretch
                                 description="The policies that user can request elevated access from."
                                 errorText={policiesError}
                             >
+                                <SpaceBetween direction="vertical" size="xs">
+                                    <Grid gridDefinition={[{ colspan: 11 }, { colspan: 1 }]}>
+                                        <Multiselect
+                                            statusType={policiesStatus}
+                                            placeholder="Select policies"
+                                            loadingText="Loading policies"
+                                            filteringType="auto"
+                                            empty="No policies available"
+                                            options={policies.map((policy) => ({
+                                                label: policy.id,
+                                                value: policy.id,
+                                                description: `Accounts: ${policy.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policy.permissions?.map(p => p.name).join(", ") || "-"}`,
+                                            }))}
+                                            selectedOptions={selectedPolicies}
+                                            onChange={({detail}) => {
+                                                setPoliciesError("");
+                                                setSelectedPolicies(detail.selectedOptions);
+                                            }}
+                                            selectedAriaLabel="selected"
+                                            deselectAriaLabel={(e) => `Remove ${e.label}`}
+                                        />
+                                        <Button
+                                            iconName="refresh"
+                                            onClick={refreshPolicies}
+                                            loading={policiesStatus === "loading"}
+                                        />
+                                    </Grid>
+                                    <Button
+                                        iconName="external"
+                                        iconAlign="right"
+                                        variant="link"
+                                        onClick={() => window.open("/admin/policies", "_blank")}
+                                    >
+                                        Create new policy
+                                    </Button>
+                                </SpaceBetween>
+                            </FormField>
+                        )}
+                        {eligibilityMode === EligibilityMode.LEGACY && (
+                        <>
+                            <FormField
+                                label="Account"
+                                stretch
+                                description="List of Eligible Accounts"
+                                errorText={accountError}
+                            >
                                 <Multiselect
-                                    statusType={policiesStatus}
-                                    placeholder="Select policies"
-                                    loadingText="Loading policies"
+                                    statusType={accountStatus}
+                                    placeholder="Select accounts"
+                                    loadingText="Loading accounts"
                                     filteringType="auto"
                                     empty="No options"
-                                    options={policies.map((policy) => ({
-                                        label: policy.id,
-                                        value: policy.id,
-                                        description: `Accounts: ${policy.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policy.permissions?.map(p => p.name).join(", ") || "-"}`,
+                                    options={accounts.map((account) => ({
+                                        label: account.name,
+                                        value: account.id,
+                                        description: account.id,
                                     }))}
-                                    selectedOptions={selectedPolicies}
+                                    selectedOptions={account}
                                     onChange={({detail}) => {
-                                        setPoliciesError("");
-                                        setSelectedPolicies(detail.selectedOptions);
+                                        setAccountError();
+                                        setAccount(detail.selectedOptions);
                                     }}
                                     selectedAriaLabel="selected"
                                     deselectAriaLabel={(e) => `Remove ${e.label}`}
                                 />
                             </FormField>
-                        )}
-                        <FormField
-                            label="Account"
-                            stretch
-                            description="List of Eligible Accounts"
-                            errorText={accountError}
-                        >
-                            <Multiselect
-                                statusType={accountStatus}
-                                placeholder="Select accounts"
-                                loadingText="Loading accounts"
-                                filteringType="auto"
-                                empty="No options"
-                                options={accounts.map((account) => ({
-                                    label: account.name,
-                                    value: account.id,
-                                    description: account.id,
-                                }))}
-                                selectedOptions={account}
-                                onChange={({detail}) => {
-                                    setAccountError();
-                                    setAccount(detail.selectedOptions);
-                                }}
-                                selectedAriaLabel="selected"
-                                deselectAriaLabel={(e) => `Remove ${e.label}`}
-                            />
-                        </FormField>
-                        <FormField
-                            label="OU"
-                            stretch
-                            description="List of Eligible OUs"
-                            errorText={ouError}
-                        >
-                            {ous.length === 1 ? (<Ous
-                                options={ous}
-                                setResource={setOU}
-                                resource={ou}
-                            />) : <Spinner size="large"/>}
-                            {/* <Multiselect
-                statusType={ouStatus}
-                placeholder="Select OUs"
-                loadingText="Loading OUs"
-                filteringType="auto"
-                empty="No options"
-                options={ous.map((ou) => ({
-                  label: ou.Name,
-                  value: ou.Id,
-                  description: ou.Id,
-                }))}
-                selectedOptions={ou}
-                onChange={({ detail }) => {
-                  setOuError();
-                  setOU(detail.selectedOptions);
-                }}
-                selectedAriaLabel="selected"
-                deselectAriaLabel={(e) => `Remove ${e.label}`}
-              /> */}
-                        </FormField>
-                        <FormField
-                            label="Permission"
-                            stretch
-                            description="List of Eligible Permissions"
-                            errorText={permissionError}
-                        >
-                            <Multiselect
-                                statusType={permissionStatus}
-                                placeholder="Select Permissions"
-                                loadingText="Loading Permissions"
-                                filteringType="auto"
-                                empty="No options"
-                                options={permissions.map((permission) => ({
-                                    label: permission.Name,
-                                    value: permission.Arn,
-                                    description: permission.Arn,
-                                }))}
-                                selectedOptions={permission}
-                                onChange={({detail}) => {
-                                    setPermissionError();
-                                    setPermission(detail.selectedOptions);
-                                }}
-                                selectedAriaLabel="selected"
-                                deselectAriaLabel={(e) => `Remove ${e.label}`}
-                            />
-                        </FormField>
-                        <FormField
-                            label="Max duration"
-                            stretch
-                            description="Maximum elevated access request duration in hours"
-                            errorText={durationError}
-                            placeholder={`Enter number between 1-8000`}
-                        >
-                            <Input
-                                value={duration}
-                                onChange={(event) => {
-                                    setDurationError();
-                                    event.detail.value > 8000
-                                        ? setDurationError(
-                                            `Enter a number between 1 and 8000`
-                                        )
-                                        : setDuration(event.detail.value);
-                                }}
-                                type="number"
-                            />
-                        </FormField>
-                        <FormField
-                            label="Approval required"
-                            stretch
-                            description="Determines if approval is required for elevated access"
-                        >
-                            <Toggle
-                                onChange={({detail}) => setApprovalRequired(detail.checked)}
-                                checked={approvalRequired}
+                            <FormField
+                                label="OU"
+                                stretch
+                                description="List of Eligible OUs"
+                                errorText={ouError}
                             >
-                                Approval required
-                            </Toggle>
-                        </FormField>
+                                {ous.length === 1 ? (<Ous
+                                    options={ous}
+                                    setResource={setOU}
+                                    resource={ou}
+                                />) : <Spinner size="large"/>}
+                            </FormField>
+                            <FormField
+                                label="Permission"
+                                stretch
+                                description="List of Eligible Permissions"
+                                errorText={permissionError}
+                            >
+                                <Multiselect
+                                    statusType={permissionStatus}
+                                    placeholder="Select Permissions"
+                                    loadingText="Loading Permissions"
+                                    filteringType="auto"
+                                    empty="No options"
+                                    options={permissions.map((permission) => ({
+                                        label: permission.Name,
+                                        value: permission.Arn,
+                                        description: permission.Arn,
+                                    }))}
+                                    selectedOptions={permission}
+                                    onChange={({detail}) => {
+                                        setPermissionError();
+                                        setPermission(detail.selectedOptions);
+                                    }}
+                                    selectedAriaLabel="selected"
+                                    deselectAriaLabel={(e) => `Remove ${e.label}`}
+                                />
+                            </FormField>
+                            <FormField
+                                label="Max duration"
+                                stretch
+                                description="Maximum elevated access request duration in hours"
+                                errorText={durationError}
+                                placeholder={`Enter number between 1-8000`}
+                            >
+                                <Input
+                                    value={duration}
+                                    onChange={(event) => {
+                                        setDurationError();
+                                        event.detail.value > 8000
+                                            ? setDurationError(
+                                                `Enter a number between 1 and 8000`
+                                            )
+                                            : setDuration(event.detail.value);
+                                    }}
+                                    type="number"
+                                />
+                            </FormField>
+                            <FormField
+                                label="Approval required"
+                                stretch
+                                description="Determines if approval is required for elevated access"
+                            >
+                                <Toggle
+                                    onChange={({detail}) => setApprovalRequired(detail.checked)}
+                                    checked={approvalRequired}
+                                >
+                                    Approval required
+                                </Toggle>
+                            </FormField>
+                        </>
+                        )}
                     </SpaceBetween>
                 </Modal>
             )}

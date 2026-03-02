@@ -519,6 +519,32 @@ export async function delPolicyTemplate(data) {
   }
 }
 
+// Check if approver group is used in any policy
+export async function getApproverGroupUsage(approverGroupId) {
+  const policies = await getAllPolicies();
+  if (policies.error) {
+    return { error: policies.error };
+  }
+  const usedIn = policies.filter(policy =>
+    policy.approverGroupIds &&
+    policy.approverGroupIds.some(group => group.id === approverGroupId)
+  );
+  return usedIn;
+}
+
+// Check if policy is used in any eligibility
+export async function getPolicyUsage(policyId) {
+  const eligibilities = await getAllEligibility();
+  if (eligibilities.error) {
+    return { error: eligibilities.error };
+  }
+  const usedIn = eligibilities.filter(eligibility =>
+    eligibility.policyIds &&
+    eligibility.policyIds.includes(policyId)
+  );
+  return usedIn;
+}
+
 export async function invalidateOUCache(ouIds) {
   try {
     const mutation = `

@@ -35,7 +35,8 @@ import {
   delApprover,
   editApprover,
   fetchIdCGroups,
-  getSetting
+  getSetting,
+  getApproverGroupUsage
 } from "../Shared/RequestService";
 import "../../index.css";
 
@@ -232,6 +233,7 @@ function Approvers(props) {
   const { selectedItems } = collectionProps;
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(true);
+  const [refreshLoading, setRefreshLoading] = useState(false);
   const [visible, setVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
@@ -269,12 +271,20 @@ function Approvers(props) {
     getAllApprovers().then((items) => {
       setAllItems(items);
       setTableLoading(false);
+      setRefreshLoading(false);
       setConfirmLoading(false);
       setVisible(false);
       setDeleteVisible(false);
       handleDismiss();
       getSettings();
     });
+  }
+
+  function handleRefresh() {
+    setRefreshLoading(true);
+    setTableLoading(true);
+    props.addNotification([]);
+    views();
   }
 
   function handleAdd() {
@@ -295,24 +305,40 @@ function Approvers(props) {
     } else handleEdit();
   }
 
-  function handleDelete() {
-    selectedItems.forEach((item) => {
-      setConfirmLoading(true);
-      const data = {
-        id: item.id,
-      };
-      delApprover(data).then(() => {
-        views();
+  async function handleDelete() {
+    setConfirmLoading(true);
+    for (const item of selectedItems) {
+      // Check if approver group is used in any policy
+      const usedInPolicies = await getApproverGroupUsage(item.id);
+      if (usedInPolicies.length > 0) {
+        setConfirmLoading(false);
+        setDeleteVisible(false);
         props.addNotification([
           {
-            type: "success",
-            content: `Approvers deleted successfully`,
+            type: "error",
+            content: `Cannot delete "${item.name}" - it is used in ${usedInPolicies.length} policy/policies. Remove it from policies first.`,
             dismissible: true,
             onDismiss: () => props.addNotification([]),
           },
         ]);
-      });
-    });
+        return;
+      }
+      const data = {
+        id: item.id,
+      };
+      await delApprover(data);
+    }
+    views();
+    setConfirmLoading(false);
+    setDeleteVisible(false);
+    props.addNotification([
+      {
+        type: "success",
+        content: `Approvers deleted successfully`,
+        dismissible: true,
+        onDismiss: () => props.addNotification([]),
+      },
+    ]);
   }
 
   function handleConfirmEdit() {
@@ -519,7 +545,11 @@ function Approvers(props) {
             }
             actions={
               <SpaceBetween size="s" direction="horizontal">
-                <Button iconName="refresh" />
+                <Button
+                  iconName="refresh"
+                  onClick={handleRefresh}
+                  loading={refreshLoading}
+                />
                 <ButtonDropdown
                   items={[
                     {

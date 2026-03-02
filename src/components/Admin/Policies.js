@@ -21,7 +21,8 @@ import {
   ColumnLayout,
   Toggle,
   Input,
-  Spinner
+  Spinner,
+  Grid
 } from "@awsui/components-react";
 import { useCollection } from "@awsui/collection-hooks";
 import Ous from "../Shared/Ous";
@@ -35,7 +36,9 @@ import {
   addPolicyTemplate,
   editPolicyTemplate,
   delPolicyTemplate,
-  getSetting, getAllApprovers
+  getSetting,
+  getAllApprovers,
+  getPolicyUsage
 } from "../Shared/RequestService";
 import "../../index.css";
 
@@ -254,6 +257,7 @@ function Policies(props) {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(true);
+  const [refreshLoading, setRefreshLoading] = useState(false);
   const [visible, setVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
@@ -310,6 +314,7 @@ function Policies(props) {
         setAllItems(items);
       }
       setTableLoading(false);
+      setRefreshLoading(false);
       setConfirmLoading(false);
       setSubmitLoading(false);
       setVisible(false);
@@ -317,6 +322,13 @@ function Policies(props) {
       handleDismiss();
       getSettings();
     });
+  }
+
+  function handleRefresh() {
+    setRefreshLoading(true);
+    setTableLoading(true);
+    props.addNotification([]);
+    views();
   }
 
   function getSettings() {
@@ -339,24 +351,40 @@ function Policies(props) {
     }
   }
 
-  function handleDelete() {
-    selectedItems.forEach((item) => {
-      setConfirmLoading(true);
-      const data = {
-        id: item.id,
-      };
-      delPolicyTemplate(data).then(() => {
-        views();
+  async function handleDelete() {
+    setConfirmLoading(true);
+    for (const item of selectedItems) {
+      // Check if policy is used in any eligibility
+      const usedInEligibilities = await getPolicyUsage(item.id);
+      if (usedInEligibilities.length > 0) {
+        setConfirmLoading(false);
+        setDeleteVisible(false);
         props.addNotification([
           {
-            type: "success",
-            content: "Policy deleted successfully",
+            type: "error",
+            content: `Cannot delete policy "${item.id}" - it is used in ${usedInEligibilities.length} eligibility/eligibilities. Remove it from eligibilities first.`,
             dismissible: true,
             onDismiss: () => props.addNotification([]),
           },
         ]);
-      });
-    });
+        return;
+      }
+      const data = {
+        id: item.id,
+      };
+      await delPolicyTemplate(data);
+    }
+    views();
+    setConfirmLoading(false);
+    setDeleteVisible(false);
+    props.addNotification([
+      {
+        type: "success",
+        content: "Policy deleted successfully",
+        dismissible: true,
+        onDismiss: () => props.addNotification([]),
+      },
+    ]);
   }
 
   function handleConfirmEdit() {
@@ -409,27 +437,34 @@ function Policies(props) {
         description: data.id,
       })) || []
     );
+    setApprovalRequired(selectedItems[0].approvalRequired);
+    setDuration(selectedItems[0].duration);
+    // Set selected approver groups from existing data
     setApproverGroup(
       selectedItems[0].approverGroupIds?.map((data) => ({
         label: data.name,
         value: data.id,
-        description: data.id,
+        description: groups.find(g => g.id === data.id)
+          ? `Approver groups: ${groups.find(g => g.id === data.id)?.approvers?.join(', ') || '-'}`
+          : data.id,
       })) || []
     );
-    setApprovalRequired(selectedItems[0].approvalRequired);
-    setDuration(selectedItems[0].duration);
     setEditVisible(true);
   }
 
   function getApproverGroups() {
     setGroupStatus("loading");
-    getAllApprovers().then((data) => {
+    return getAllApprovers().then((data) => {
       if (data.error) {
-        setApproverGroupError(data.error.message)
+        setApproverGroupError(data.error.message);
         setGroups([]);
+        return [];
       } else {
-        setGroups(data.filter((item) => item.type === "Group"))
+        const filtered = data.filter((item) => item.type === "Group");
+        setGroups(filtered);
+        return filtered;
       }
+    }).finally(() => {
       setGroupStatus("finished");
     });
   }
@@ -584,7 +619,11 @@ function Policies(props) {
             }
             actions={
               <SpaceBetween size="s" direction="horizontal">
-                <Button iconName="refresh" onClick={views} />
+                <Button
+                  iconName="refresh"
+                  onClick={handleRefresh}
+                  loading={refreshLoading}
+                />
                 <ButtonDropdown
                   items={[
                     {
@@ -610,7 +649,7 @@ function Policies(props) {
             }
             description="Reusable policy templates that can be assigned to users and groups"
           >
-            Policy Templates
+            Eligibility policies
           </Header>
         }
         filter={
@@ -779,25 +818,42 @@ function Policies(props) {
                 description="Groups that can approve requests using this policy"
                 errorText={approverGroupError}
               >
-                <Multiselect
-                  statusType={groupStatus}
-                  placeholder="Select approver groups"
-                  loadingText="Loading groups"
-                  filteringType="auto"
-                  empty="No options"
-                  options={groups.map((group) => ({
-                    label: group.id,
-                    value: group.id,
-                    description: `Approver groups: ${group.groupIds?.map((id) => id.name).join(', ') || '-'}`,
-                  }))}
-                  selectedOptions={approverGroup}
-                  onChange={({ detail }) => {
-                    setApproverGroupError("");
-                    setApproverGroup(detail.selectedOptions);
-                  }}
-                  selectedAriaLabel="selected"
-                  deselectAriaLabel={(e) => `Remove ${e.label}`}
-                />
+                <SpaceBetween direction="vertical" size="xs">
+                  <Grid gridDefinition={[{ colspan: 11 }, { colspan: 1 }]}>
+                    <Multiselect
+                      statusType={groupStatus}
+                      placeholder="Select approver groups"
+                      loadingText="Loading groups"
+                      filteringType="auto"
+                      empty="No options"
+                      options={groups.map((group) => ({
+                        label: group.id,
+                        value: group.id,
+                        description: `Approver groups: ${group.approvers?.join(', ') || '-'}`,
+                      }))}
+                      selectedOptions={approverGroup}
+                      onChange={({ detail }) => {
+                        setApproverGroupError("");
+                        setApproverGroup(detail.selectedOptions);
+                      }}
+                      selectedAriaLabel="selected"
+                      deselectAriaLabel={(e) => `Remove ${e.label}`}
+                    />
+                    <Button
+                      iconName="refresh"
+                      onClick={getApproverGroups}
+                      loading={groupStatus === "loading"}
+                    />
+                  </Grid>
+                  <Button
+                    iconName="external"
+                    iconAlign="right"
+                    variant="link"
+                    onClick={() => window.open("/admin/approvers", "_blank")}
+                  >
+                    Create new approver group
+                  </Button>
+                </SpaceBetween>
               </FormField>
             )}
           </SpaceBetween>
@@ -967,25 +1023,42 @@ function Policies(props) {
                 description="Groups that can approve requests using this policy"
                 errorText={approverGroupError}
               >
-                <Multiselect
-                  statusType={groupStatus}
-                  placeholder="Select approver groups"
-                  loadingText="Loading groups"
-                  filteringType="auto"
-                  empty="No options"
-                  options={groups.map((group) => ({
-                    label: group.id,
-                    value: group.id,
-                    description: `Approver groups: ${group.groupIds?.map((id) => id.name).join(', ') || '-'}`,
-                  }))}
-                  selectedOptions={approverGroup}
-                  onChange={({ detail }) => {
-                    setApproverGroupError("");
-                    setApproverGroup(detail.selectedOptions);
-                  }}
-                  selectedAriaLabel="selected"
-                  deselectAriaLabel={(e) => `Remove ${e.label}`}
-                />
+                <SpaceBetween direction="vertical" size="xs">
+                  <Grid gridDefinition={[{ colspan: 11 }, { colspan: 1 }]}>
+                    <Multiselect
+                      statusType={groupStatus}
+                      placeholder="Select approver groups"
+                      loadingText="Loading groups"
+                      filteringType="auto"
+                      empty="No options"
+                      options={groups.map((group) => ({
+                        label: group.id,
+                        value: group.id,
+                        description: `Approver groups: ${group.approvers?.join(', ') || '-'}`,
+                      }))}
+                      selectedOptions={approverGroup}
+                      onChange={({ detail }) => {
+                        setApproverGroupError("");
+                        setApproverGroup(detail.selectedOptions);
+                      }}
+                      selectedAriaLabel="selected"
+                      deselectAriaLabel={(e) => `Remove ${e.label}`}
+                    />
+                    <Button
+                      iconName="refresh"
+                      onClick={getApproverGroups}
+                      loading={groupStatus === "loading"}
+                    />
+                  </Grid>
+                  <Button
+                    iconName="external"
+                    iconAlign="right"
+                    variant="link"
+                    onClick={() => window.open("/admin/approvers", "_blank")}
+                  >
+                    Create new approver group
+                  </Button>
+                </SpaceBetween>
               </FormField>
             )}
           </SpaceBetween>

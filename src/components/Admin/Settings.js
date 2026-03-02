@@ -57,6 +57,7 @@ function Settings(props) {
   const [groupStatus, setGroupStatus] = useState("");
   const [teamAdminGroup, setTeamAdminGroup] = useState("");
   const [teamAuditorGroup, setTeamAuditorGroup] = useState("");
+  const [allowLegacyEligibility, setAllowLegacyEligibility] = useState(null);
   const [useOUCache, setUseOUCache] = useState(null);
 
   function getGroups() {
@@ -182,6 +183,7 @@ function Settings(props) {
       setSlackToken(item.slackToken ?? "");
       setTeamAdminGroup(item.teamAdminGroup ?? params.teamAdminGroup);
       setTeamAuditorGroup(item.teamAuditorGroup ?? params.teamAuditorGroup);
+      setAllowLegacyEligibility(item.allowLegacyEligibility ?? true);
       setUseOUCache(item.useOUCache !== undefined ? item.useOUCache : false);
     }
     setVisible(false);
@@ -205,6 +207,7 @@ function Settings(props) {
         slackToken,
         teamAdminGroup,
         teamAuditorGroup,
+        allowLegacyEligibility,
         useOUCache,
       };
       const action = item === null ? createSetting : updateSetting;
@@ -239,6 +242,7 @@ function Settings(props) {
       setSlackToken(data?.slackToken ?? "");
       setTeamAdminGroup(data?.teamAdminGroup ?? params.teamAdminGroup);
       setTeamAuditorGroup(data?.teamAuditorGroup ?? params.teamAuditorGroup);
+      setAllowLegacyEligibility(data?.allowLegacyEligibility ?? true);
       setUseOUCache(data?.useOUCache !== undefined ? data.useOUCache : false);
     });
   }
@@ -314,6 +318,23 @@ function Settings(props) {
                         type={ticketNo === true ? "success" : "stopped"}
                       >
                         {ticketNo === true ? "Required" : "Not required"}
+                      </StatusIndicator>
+                    </div>
+                  ) : (
+                    <Spinner />
+                  )}
+                </>
+              </div>
+              <div>
+                <Box variant="awsui-key-label">Legacy eligibility</Box>
+                <>
+                  {" "}
+                  {allowLegacyEligibility !== null ? (
+                    <div>
+                      <StatusIndicator
+                        type={allowLegacyEligibility === true ? "success" : "stopped"}
+                      >
+                        {allowLegacyEligibility === true ? "Allowed" : "Disabled (policy-based only)"}
                       </StatusIndicator>
                     </div>
                   ) : (
@@ -618,6 +639,19 @@ function Settings(props) {
                     checked={ticketNo}
                   >
                     {ticketNo ? "Required" : "Not required"}
+                  </Toggle>
+                </FormField>
+                <br />
+                <FormField
+                  label="Legacy eligibility"
+                  stretch
+                  description="Allow creating legacy eligibility entries with direct account and permission assignments. If disabled, only policy-based eligibility can be created."
+                >
+                  <Toggle
+                    onChange={({ detail }) => setAllowLegacyEligibility(detail.checked)}
+                    checked={allowLegacyEligibility}
+                  >
+                    {allowLegacyEligibility ? "Allowed" : "Disabled (policy-based only)"}
                   </Toggle>
                 </FormField>
                 <br />

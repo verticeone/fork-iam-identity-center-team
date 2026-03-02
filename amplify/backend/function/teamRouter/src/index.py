@@ -293,6 +293,13 @@ def get_eligibility(request, userId, policy_id_data):
     if policy_id_data:
         if not any(policy_id_data["id"] in eligibility["policyIds"] for eligibility in entitlement):
             return eligibility_error(request)
+        # Resolve OUs to accounts for policy
+        policy_accounts = list(policy_id_data.get("accounts", []))
+        for ou in policy_id_data.get("ous", []):
+            ou_accounts = list_account_for_ou(ou["id"])
+            if ou_accounts:
+                policy_accounts.extend(ou_accounts)
+        policy_id_data["accounts"] = policy_accounts
         # User is eligible for this policy; use policy data for validation instead of full entitlements
         entitlement = [policy_id_data]
 
@@ -418,15 +425,27 @@ async def getPsDuration(ps):
 def list_approvers(ids):
     try:
         if isinstance(ids, list):
-            response = dynamodb.batch_get_item(
-                RequestItems={
+            all_items = []
+            batch_size = 100
+            approver_keys = [{"id": approver_id} for approver_id in ids]
+
+            # Process in chunks of 100 (DynamoDB batch_get_item limit)
+            for i in range(0, len(approver_keys), batch_size):
+                batch_keys = approver_keys[i:i + batch_size]
+
+                request_items = {
                     approver_table_name: {
-                        'Keys': [{"id": approver_id} for approver_id in ids]
+                        'Keys': batch_keys
                     }
                 }
-            )
-            items = response.get("Responses", {}).get(approver_table_name, [])
-            return list(set(group_id for item in items for group_id in item.get("groupIds", [])))
+
+                # Handle UnprocessedKeys with retry
+                while request_items:
+                    response = dynamodb.batch_get_item(RequestItems=request_items)
+                    all_items.extend(response.get("Responses", {}).get(approver_table_name, []))
+                    request_items = response.get('UnprocessedKeys', {})
+
+            return list(set(group_id for item in all_items for group_id in item.get("groupIds", [])))
         else:
             response = approver_table.get_item(
                 Key={
