@@ -102,7 +102,7 @@ def publishPolicy(result):
 def get_ou_accounts(ou_ids):
     """Get accounts for multiple OUs using cached GraphQL query"""
     if not ou_ids:
-        return []
+        return {}
 
     session = boto3.session.Session()
     credentials = session.get_credentials()
@@ -129,7 +129,7 @@ def get_ou_accounts(ou_ids):
     appsync_region = region
     auth = AWSV4Sign(credentials, appsync_region, "appsync")
 
-    all_accounts = []
+    all_accounts = {}
     batch_size = 20
 
     # Process in batches of 20
@@ -150,10 +150,10 @@ def get_ou_accounts(ou_ids):
 
             # Flatten accounts from this batch
             for result in results:
-                accounts = result.get("accounts", [])
-                all_accounts.extend(accounts)
-                cached_status = "cached" if result.get("cached") else "fetched"
-                print(f"OU {result.get('ouId')}: {len(accounts)} accounts ({cached_status})")
+                if result.get('ouId'):
+                    all_accounts[result.get('ouId')] = result.get("accounts", [])
+                    cached_status = "cached" if result.get("cached") else "fetched"
+                    print(f"OU {result.get('ouId')}: {len(all_accounts[result.get('ouId')])} accounts ({cached_status})")
 
         except Exception as exception:
             print(f"Error calling getOUAccounts batch {i//batch_size + 1}")
@@ -321,7 +321,6 @@ def handler(event, context):
     use_ou_cache = settings.get("useOUCache", False)  # Default to False (direct API)
     print(f"Using OU cache: {use_ou_cache}")
 
-    ou_accounts_map = []
     # Resolve all OUs at once (parallel)
     if use_ou_cache:
         ou_accounts_map = get_ou_accounts(all_ou_ids)
