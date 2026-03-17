@@ -7,6 +7,31 @@ dynamodb = boto3.resource("dynamodb")
 organizations = boto3.client("organizations")
 
 eligibility_table = dynamodb.Table(os.environ["ELIGIBILITY_TABLE_NAME"])
+policies_table_name = os.environ["POLICIES_TABLE_NAME"]
+
+
+def get_policies(policy_ids):
+    """Get policies by IDs from DynamoDB using batch_get_item"""
+    if not policy_ids:
+        return []
+
+    policy_keys = [{"id": pid} for pid in policy_ids if pid]
+    if not policy_keys:
+        return []
+
+    all_items = []
+    batch_size = 100
+
+    for i in range(0, len(policy_keys), batch_size):
+        batch_keys = policy_keys[i:i + batch_size]
+        request_items = {policies_table_name: {"Keys": batch_keys}}
+
+        while request_items:
+            response = dynamodb.batch_get_item(RequestItems=request_items)
+            all_items.extend(response.get("Responses", {}).get(policies_table_name, []))
+            request_items = response.get("UnprocessedKeys", {})
+
+    return all_items
 
 
 def get_account_parent_ou(account_id):
@@ -19,15 +44,7 @@ def get_account_parent_ou(account_id):
             print(f"No parent found for account {account_id}")
             return None
         
-        parent = parents[0]
-        parent_id = parent.get("Id")
-        parent_type = parent.get("Type")
-        
-        # If parent is root, return None (root is not an OU)
-        if parent_type == "ROOT":
-            return None
-            
-        return parent_id
+        return parents[0].get("Id")
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code")
         if error_code == "AccountNotFoundException":
@@ -63,64 +80,124 @@ def get_user_eligibility(user_id, group_ids):
     return eligibility_entries
 
 
-def validate_request(account_id, permission_set_id, user_id, group_ids):
-    """
-    Validate that the user is eligible to request access to the account/permission set.
-    Returns (is_valid, reason)
-    """
-    # Get user's eligibility entries
-    eligibility_entries = get_user_eligibility(user_id, group_ids)
-    
-    if not eligibility_entries:
-        return False, "No eligibility entries found for user"
-    
-    # Check each eligibility entry
-    for entry in eligibility_entries:
-        # Check direct account grants
-        accounts = entry.get("accounts", [])
-        for account in accounts:
-            if account.get("id") == account_id:
-                # Check if permission set is allowed
+def check_entry_for_access(entry, account_id, permission_set_id, parent_ou):
+    """Check if an entry (eligibility or policy) grants access to the account/permission"""
+    # Check direct account grants
+    accounts = entry.get("accounts", [])
+    print(f"Checking entry - accounts: {accounts}, ous: {entry.get('ous', [])}, permissions: {entry.get('permissions', [])}")
+    print(f"Looking for account_id: {account_id}, permission_set_id: {permission_set_id}")
+    for account in accounts:
+        if account.get("id") == account_id:
+            permissions = entry.get("permissions", [])
+            for perm in permissions:
+                if perm.get("id") == permission_set_id:
+                    return True, "Direct account grant"
+
+    # Check OU-based grants
+    ous = entry.get("ous", [])
+    if ous and parent_ou:
+        for ou in ous:
+            if ou.get("id") == parent_ou:
                 permissions = entry.get("permissions", [])
                 for perm in permissions:
                     if perm.get("id") == permission_set_id:
-                        return True, "Direct account grant"
-        
-        # Check OU-based grants
-        ous = entry.get("ous", [])
-        if ous:
-            # Get account's parent OU from Organizations
-            parent_ou = get_account_parent_ou(account_id)
-            
-            if parent_ou:
-                for ou in ous:
-                    if ou.get("id") == parent_ou:
-                        # Check if permission set is allowed
-                        permissions = entry.get("permissions", [])
-                        for perm in permissions:
-                            if perm.get("id") == permission_set_id:
-                                return True, f"OU-based grant (OU: {parent_ou})"
-    
+                        return True, f"OU-based grant (OU: {parent_ou})"
+
+    return False, None
+
+
+def validate_request(account_id, permission_set_id, user_id, group_ids, policy_id=None):
+    """
+    Validate that the user is eligible to request access to the account/permission set.
+    If policy_id is provided, validate only against that specific policy.
+    Returns (is_valid, reason)
+    """
+    eligibility_entries = get_user_eligibility(user_id, group_ids)
+
+    if not eligibility_entries:
+        return False, "No eligibility entries found for user"
+
+    # Get parent OU once for all checks
+    parent_ou = get_account_parent_ou(account_id)
+    print(f"Parent OU: {parent_ou}")
+
+    # If specific policy_id provided, validate against that policy only
+    if policy_id:
+        # Check if user has access to this policy through any eligibility
+        user_has_policy = False
+        for entry in eligibility_entries:
+            if policy_id in entry.get("policyIds", []):
+                user_has_policy = True
+                break
+
+        if not user_has_policy:
+            return False, f"User does not have access to policy {policy_id}"
+
+        # Fetch and validate against the specific policy
+        policies = get_policies([policy_id])
+        if not policies:
+            return False, f"Policy {policy_id} not found"
+
+        policy = policies[0]
+        print(f"Validating against policy: {policy}")
+        is_valid, reason = check_entry_for_access(policy, account_id, permission_set_id, parent_ou)
+        if is_valid:
+            return True, f"Policy-based grant (policy: {policy_id})"
+        return False, "Account/permission not in the selected policy"
+
+    # No specific policy - check all eligibilities (legacy flow)
+    print(f"Eligibility entries: {eligibility_entries}")
+
+    # Collect all policy IDs from policy-based eligibilities
+    all_policy_ids = []
+    for entry in eligibility_entries:
+        entry_policy_ids = entry.get("policyIds", [])
+        if entry_policy_ids:
+            all_policy_ids.extend(entry_policy_ids)
+
+    # Fetch all policies at once
+    policies_map = {p["id"]: p for p in get_policies(all_policy_ids)} if all_policy_ids else {}
+
+    # Check each eligibility entry
+    for entry in eligibility_entries:
+        entry_policy_ids = entry.get("policyIds", [])
+
+        if entry_policy_ids:
+            # Policy-based: check each policy
+            for pid in entry_policy_ids:
+                policy = policies_map.get(pid)
+                if policy:
+                    print(f"Checking policy: {policy}")
+                    is_valid, reason = check_entry_for_access(policy, account_id, permission_set_id, parent_ou)
+                    if is_valid:
+                        return True, f"Policy-based grant (policy: {pid})"
+        else:
+            # Legacy: check eligibility directly
+            is_valid, reason = check_entry_for_access(entry, account_id, permission_set_id, parent_ou)
+            if is_valid:
+                return True, reason
+
     return False, "Account not in user's eligible accounts or OUs"
 
 
 def handler(event, context):
     print(f"Received event: {json.dumps(event)}")
-    
+
     # Extract request details from GraphQL mutation arguments
     arguments = event.get("arguments", {})
-    
+
     account_id = arguments.get("accountId")
     role_id = arguments.get("roleId")
     user_id = arguments.get("userId")
     group_ids = arguments.get("groupIds", [])
-    
+    policy_id = arguments.get("policyId")
+
     if not account_id or not role_id:
         return {
             "valid": False,
             "reason": "Missing accountId or roleId"
         }
-    
+
     if not user_id:
         return {
             "valid": False,
@@ -128,9 +205,9 @@ def handler(event, context):
         }
     
     # Validate the request
-    is_valid, reason = validate_request(account_id, role_id, user_id, group_ids)
-    
-    print(f"Validation result for user {user_id}, account {account_id}, role {role_id}: {is_valid} - {reason}")
+    is_valid, reason = validate_request(account_id, role_id, user_id, group_ids, policy_id)
+
+    print(f"Validation result for user {user_id}, account {account_id}, role {role_id}, policy {policy_id}: {is_valid} - {reason}")
     
     return {
         "valid": is_valid,

@@ -37,6 +37,32 @@ import { API, graphqlOperation } from "aws-amplify";
 import { onPublishPolicy } from "../../graphql/subscriptions";
 import params from "../../parameters.json";
 
+function CopyableContact({ value }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 800);
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "16px" }}>
+      <span>{value}</span>
+      {copied ? (
+        <StatusIndicator type="success">Copied</StatusIndicator>
+      ) : (
+        <Button
+          variant="icon"
+          iconName="copy"
+          onClick={handleCopy}
+          ariaLabel={`Copy ${value}`}
+        />
+      )}
+    </div>
+  );
+}
+
 function Request(props) {
   const [email, setEmail] = useState("");
 
@@ -82,6 +108,8 @@ function Request(props) {
   const [maxDuration, setMaxDuration] = useState(9);
   const [ticketRequired, setTicketRequired] = useState(true);
   const [approvalRequired, setApprovalRequired] = useState(true);
+  const [noEligibility, setNoEligibility] = useState(false);
+  const [supportContacts, setSupportContacts] = useState([]);
 
   const history = useHistory();
 
@@ -159,7 +187,11 @@ function Request(props) {
   async function getPermissions(accountId) {
     let permissionData = [];
     setRole([]);
-    const permissions = item.map((data) => {
+    // Filter items based on eligibility type - legacy items have no policyIds
+    const relevantItems = eligibilityType === EligibilityMode.LEGACY
+      ? item.filter(data => !data.policyIds || data.policyIds.length === 0)
+      : item;
+    relevantItems.map((data) => {
       data.accounts.map((account) => {
         if (account.id == accountId) {
           permissionData = permissionData.concat(data.permissions);
@@ -182,7 +214,14 @@ function Request(props) {
     const subscription = API.graphql(graphqlOperation(onPublishPolicy)).subscribe({
       next: (result) => {
         const policy = result.value.data.onPublishPolicy.policy;
+        if (!policy || policy.length === 0) {
+          setNoEligibility(true);
+          setInitialLoading(false);
+          subscription.unsubscribe();
+          return;
+        }
         if (policy?.length > 0) {
+          setNoEligibility(false);
           setItem(policy);
 
           // Separate legacy items (have accounts/permissions directly, no policyIds)
@@ -265,6 +304,7 @@ function Request(props) {
         setMaxDuration(parseInt(data.duration));
         setTicketRequired(data.ticketNo);
         setApprovalRequired(data.approval);
+        setSupportContacts(data.supportContacts ?? []);
       }
     });
   }
@@ -306,7 +346,8 @@ function Request(props) {
         account.value,
         role.value,
         props.userId,
-        props.groupIds
+        props.groupIds,
+        selectedPolicy?.value || null
       );
 
       if (!validation.valid) {
@@ -524,6 +565,61 @@ function Request(props) {
             <StatusIndicator type="loading">
               Loading your eligibility policies...
             </StatusIndicator>
+          </Box>
+        </Container>
+      </div>
+    );
+  }
+
+  if (noEligibility) {
+    return (
+      <div className="container">
+        <Container
+          header={
+            <Header
+              variant="h2"
+              description="Request temporary elevated access"
+            >
+              Elevated access request
+            </Header>
+          }
+        >
+          <Box textAlign="center" padding="xl">
+            <SpaceBetween size="l">
+              <StatusIndicator type="warning">
+                No eligibility assigned
+              </StatusIndicator>
+              <Box variant="p">
+                You are not a member of any eligibility group. You cannot request elevated access to any accounts or permission sets.
+              </Box>
+              <Box>
+                <Box variant="h4" textAlign="center">Contact support to request eligibility:</Box>
+                {supportContacts.length > 0 ? (
+                  <div style={{ display: "flex", justifyContent: "center", marginTop: "16px" }}>
+                    <div style={{ textAlign: "left" }}>
+                      <SpaceBetween size="s">
+                        {Object.entries(
+                          supportContacts.reduce((acc, contact) => {
+                            if (!acc[contact.key]) acc[contact.key] = [];
+                            acc[contact.key].push(contact.value);
+                            return acc;
+                          }, {})
+                        ).map(([key, values]) => (
+                          <div key={key}>
+                            <Box variant="strong">{key}:</Box>
+                            {values.map((value, index) => (
+                              <CopyableContact key={index} value={value} />
+                            ))}
+                          </div>
+                        ))}
+                      </SpaceBetween>
+                    </div>
+                  </div>
+                ) : (
+                  <Box variant="p" textAlign="center">Contact your TEAM administrators.</Box>
+                )}
+              </Box>
+            </SpaceBetween>
           </Box>
         </Container>
       </div>

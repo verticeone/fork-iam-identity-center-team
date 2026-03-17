@@ -258,7 +258,7 @@ def resolve_all_ous_to_accounts(ou_ids):
     with ThreadPoolExecutor(max_workers=5) as executor:
         # Create list of (ou_id, future) pairs
         future_to_ou = {executor.submit(list_account_for_ou, ou_id): ou_id for ou_id in ou_ids}
-        for future in future_to_ou:
+        for future in as_completed(future_to_ou):
             ou_id = future_to_ou[future]
             result = future.result()
             ou_accounts_map[ou_id] = result if result else []
@@ -323,7 +323,7 @@ def handler(event, context):
 
     # Resolve all OUs at once (parallel)
     if use_ou_cache:
-        ou_accounts_map = get_ou_accounts(all_ou_ids)
+        ou_accounts_map = get_ou_accounts(list(all_ou_ids))
     else:
         ou_accounts_map = resolve_all_ous_to_accounts(all_ou_ids)
 

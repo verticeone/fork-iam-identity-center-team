@@ -256,6 +256,11 @@ export const createSettings = /* GraphQL */ `
       teamAuditorGroup
       allowLegacyEligibility
       useOUCache
+      supportContacts {
+        key
+        value
+        __typename
+      }
       createdAt
       updatedAt
       __typename
@@ -286,6 +291,11 @@ export const updateSettings = /* GraphQL */ `
       teamAuditorGroup
       allowLegacyEligibility
       useOUCache
+      supportContacts {
+        key
+        value
+        __typename
+      }
       createdAt
       updatedAt
       __typename
@@ -315,6 +325,12 @@ export const deleteSettings = /* GraphQL */ `
       teamAdminGroup
       teamAuditorGroup
       allowLegacyEligibility
+      useOUCache
+      supportContacts {
+        key
+        value
+        __typename
+      }
       createdAt
       updatedAt
       __typename
@@ -582,6 +598,37 @@ export const publishPermissions = /* GraphQL */ `
         Duration
         __typename
       }
+      __typename
+    }
+  }
+`;
+export const invalidateOUCache = /* GraphQL */ `
+  mutation InvalidateOUCache($ouIds: [String]!) {
+    invalidateOUCache(ouIds: $ouIds) {
+      invalidated
+      failed
+      message
+      __typename
+    }
+  }
+`;
+export const validateRequest = /* GraphQL */ `
+  mutation ValidateRequest(
+    $accountId: String!
+    $roleId: String!
+    $userId: String!
+    $groupIds: [String]!
+    $policyId: String
+  ) {
+    validateRequest(
+      accountId: $accountId
+      roleId: $roleId
+      userId: $userId
+      groupIds: $groupIds
+      policyId: $policyId
+    ) {
+      valid
+      reason
       __typename
     }
   }

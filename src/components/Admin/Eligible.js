@@ -41,7 +41,7 @@ import {
     delPolicy,
     fetchUsers,
     getAllEligibility,
-    getSetting, getAllApprovers, getAllPolicies
+    getSetting, getAllApprovers, getAllPoliciesWithAccounts
 } from "../Shared/RequestService";
 import {
     EligibilityMode,
@@ -388,7 +388,7 @@ function Eligible(props) {
 
     function views() {
         setPoliciesStatus("loading");
-        Promise.all([getAllEligibility(), getAllPolicies()]).then(([eligibility, policies]) => {
+        Promise.all([getAllEligibility(), getAllPoliciesWithAccounts()]).then(([eligibility, policies]) => {
             const expandedItems = []
             if (eligibility.error || policies.error) {
                 setAllItems([]);
@@ -415,7 +415,7 @@ function Eligible(props) {
                                 ticketNo: item.ticketNo,
                                 policyId: policyId,
                                 policyIds: item.policyIds,
-                                accounts: policyFound?.accounts || [],
+                                accounts: policyFound?.resolvedAccounts || [],
                                 ous: policyFound?.ous || [],
                                 permissions: policyFound?.permissions || [],
                                 duration: policyFound?.duration || "N/A",
@@ -449,7 +449,7 @@ function Eligible(props) {
 
     function refreshPolicies() {
         setPoliciesStatus("loading");
-        return getAllPolicies().then((data) => {
+        return getAllPoliciesWithAccounts().then((data) => {
             if (data.error) {
                 setPoliciesError(data.error.message);
                 return [];
@@ -485,20 +485,49 @@ function Eligible(props) {
     function handleDelete() {
         selectedItems.forEach((item) => {
             setConfirmLoading(true);
-            const data = {
-                id: item.id,
-            };
-            delPolicy(data).then(() => {
-                views();
-                props.addNotification([
-                    {
-                        type: "success",
-                        content: `Eligibility policy deleted successfully`,
-                        dismissible: true,
-                        onDismiss: () => props.addNotification([]),
-                    },
-                ]);
-            });
+
+            // Check if this is a policy-based eligibility with multiple policies
+            if (item.policyId && item.policyIds && item.policyIds.length > 1) {
+                // Remove only the selected policy from policyIds
+                const updatedPolicyIds = item.policyIds.filter(pid => pid !== item.policyId);
+                const data = {
+                    id: item.id,
+                    policyIds: updatedPolicyIds,
+                    ticketNo: item.ticketNo || "",
+                    accounts: [],
+                    permissions: [],
+                    ous: [],
+                    approvalRequired: false,
+                    duration: "0"
+                };
+                editPolicy(data).then(() => {
+                    views();
+                    props.addNotification([
+                        {
+                            type: "success",
+                            content: `Policy removed from eligibility successfully`,
+                            dismissible: true,
+                            onDismiss: () => props.addNotification([]),
+                        },
+                    ]);
+                });
+            } else {
+                // Delete entire eligibility (legacy or single policy)
+                const data = {
+                    id: item.id,
+                };
+                delPolicy(data).then(() => {
+                    views();
+                    props.addNotification([
+                        {
+                            type: "success",
+                            content: `Eligibility deleted successfully`,
+                            dismissible: true,
+                            onDismiss: () => props.addNotification([]),
+                        },
+                    ]);
+                });
+            }
         });
     }
 
@@ -605,7 +634,7 @@ function Eligible(props) {
                         label: policyId,
                         value: policyId,
                         description: policyFound
-                            ? `Accounts: ${policyFound.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policyFound.permissions?.map(p => p.name).join(", ") || "-"}`
+                            ? `Accounts: ${policyFound.resolvedAccounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policyFound.permissions?.map(p => p.name).join(", ") || "-"}`
                             : policyId,
                     };
                 }) || []
@@ -1092,7 +1121,7 @@ function Eligible(props) {
                                             options={policies.map((policy) => ({
                                                 label: policy.id,
                                                 value: policy.id,
-                                                description: `Accounts: ${policy.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policy.permissions?.map(p => p.name).join(", ") || "-"}`,
+                                                description: `Accounts: ${policy.resolvedAccounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policy.permissions?.map(p => p.name).join(", ") || "-"}`,
                                             }))}
                                             selectedOptions={selectedPolicies}
                                             onChange={({detail}) => {
@@ -1344,7 +1373,7 @@ function Eligible(props) {
                                             options={policies.map((policy) => ({
                                                 label: policy.id,
                                                 value: policy.id,
-                                                description: `Accounts: ${policy.accounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policy.permissions?.map(p => p.name).join(", ") || "-"}`,
+                                                description: `Accounts: ${policy.resolvedAccounts?.map(a => a.name).join(", ") || "-"} | Permissions: ${policy.permissions?.map(p => p.name).join(", ") || "-"}`,
                                             }))}
                                             selectedOptions={selectedPolicies}
                                             onChange={({detail}) => {

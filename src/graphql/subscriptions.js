@@ -75,6 +75,12 @@ export const onCreateSettings = /* GraphQL */ `
       teamAdminGroup
       teamAuditorGroup
       allowLegacyEligibility
+      useOUCache
+      supportContacts {
+        key
+        value
+        __typename
+      }
       createdAt
       updatedAt
       __typename
@@ -101,6 +107,12 @@ export const onUpdateSettings = /* GraphQL */ `
       teamAdminGroup
       teamAuditorGroup
       allowLegacyEligibility
+      useOUCache
+      supportContacts {
+        key
+        value
+        __typename
+      }
       createdAt
       updatedAt
       __typename
@@ -127,6 +139,12 @@ export const onDeleteSettings = /* GraphQL */ `
       teamAdminGroup
       teamAuditorGroup
       allowLegacyEligibility
+      useOUCache
+      supportContacts {
+        key
+        value
+        __typename
+      }
       createdAt
       updatedAt
       __typename

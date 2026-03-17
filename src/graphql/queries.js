@@ -284,6 +284,11 @@ export const getSettings = /* GraphQL */ `
       teamAuditorGroup
       allowLegacyEligibility
       useOUCache
+      supportContacts {
+        key
+        value
+        __typename
+      }
       createdAt
       updatedAt
       __typename
@@ -315,6 +320,12 @@ export const listSettings = /* GraphQL */ `
         teamAdminGroup
         teamAuditorGroup
         allowLegacyEligibility
+        useOUCache
+        supportContacts {
+          key
+          value
+          __typename
+        }
         createdAt
         updatedAt
         __typename
@@ -615,34 +626,75 @@ export const updateRequestData = /* GraphQL */ `
   }
 `;
 export const validateRequest = /* GraphQL */ `
-  query ValidateRequest {
-    validateRequest {
+  query ValidateRequest(
+    $accountId: String!
+    $roleId: String!
+    $userId: String!
+    $groupIds: [String]!
+    $policyId: String
+  ) {
+    validateRequest(
+      accountId: $accountId
+      roleId: $roleId
+      userId: $userId
+      groupIds: $groupIds
+      policyId: $policyId
+    ) {
+      valid
+      reason
+      __typename
+    }
+  }
+`;
+export const getOUAccounts = /* GraphQL */ `
+  query GetOUAccounts($ouIds: [String]!) {
+    getOUAccounts(ouIds: $ouIds) {
+      results {
+        ouId
+        accounts {
+          name
+          id
+          __typename
+        }
+        cached
+        __typename
+      }
+      __typename
+    }
+  }
+`;
+export const listPoliciesWithAccounts = /* GraphQL */ `
+  query ListPoliciesWithAccounts {
+    listPoliciesWithAccounts {
       id
-      email
-      accountId
-      accountName
-      role
-      roleId
-      startTime
+      accounts {
+        name
+        id
+        __typename
+      }
+      resolvedAccounts {
+        name
+        id
+        __typename
+      }
+      ous {
+        name
+        id
+        __typename
+      }
+      permissions {
+        name
+        id
+        __typename
+      }
+      approvalRequired
+      approverGroupIds {
+        name
+        id
+        __typename
+      }
       duration
-      justification
-      status
-      comment
-      username
-      approver
-      approverId
-      approvers
-      approver_ids
-      revoker
-      revokerId
-      endTime
-      ticketNo
-      revokeComment
-      session_duration
-      policyId
-      createdAt
-      updatedAt
-      owner
+      modifiedBy
       __typename
     }
   }

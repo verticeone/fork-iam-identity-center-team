@@ -24,6 +24,7 @@ import {
   getMgmtPermissions,
   getUserPolicy,
   listPolicies,
+  listPoliciesWithAccounts,
   getPolicies
 } from "../../graphql/queries";
 import {
@@ -472,6 +473,16 @@ export async function getAllPolicies() {
   }
 }
 
+export async function getAllPoliciesWithAccounts() {
+  try {
+    const request = await API.graphql(graphqlOperation(listPoliciesWithAccounts));
+    return request.data.listPoliciesWithAccounts || [];
+  } catch (err) {
+    console.log("error fetching policies with accounts");
+    return { "error": err };
+  }
+}
+
 export async function getPolicy(id) {
   try {
     const request = await API.graphql(
@@ -566,18 +577,18 @@ export async function invalidateOUCache(ouIds) {
   }
 }
 
-export async function validateRequest(accountId, roleId, userId, groupIds) {
+export async function validateRequest(accountId, roleId, userId, groupIds, policyId = null) {
   try {
     const mutation = `
-      mutation ValidateRequest($accountId: String!, $roleId: String!, $userId: String!, $groupIds: [String]!) {
-        validateRequest(accountId: $accountId, roleId: $roleId, userId: $userId, groupIds: $groupIds) {
+      mutation ValidateRequest($accountId: String!, $roleId: String!, $userId: String!, $groupIds: [String]!, $policyId: String) {
+        validateRequest(accountId: $accountId, roleId: $roleId, userId: $userId, groupIds: $groupIds, policyId: $policyId) {
           valid
           reason
         }
       }
     `;
     const response = await API.graphql(
-      graphqlOperation(mutation, { accountId, roleId, userId, groupIds })
+      graphqlOperation(mutation, { accountId, roleId, userId, groupIds, policyId })
     );
     return response.data.validateRequest;
   } catch (err) {
