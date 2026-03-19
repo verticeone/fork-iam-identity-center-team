@@ -119,7 +119,6 @@ def validate_request(account_id, permission_set_id, user_id, group_ids, policy_i
 
     # Get parent OU once for all checks
     parent_ou = get_account_parent_ou(account_id)
-    print(f"Parent OU: {parent_ou}")
 
     # If specific policy_id provided, validate against that policy only
     if policy_id:
@@ -139,14 +138,10 @@ def validate_request(account_id, permission_set_id, user_id, group_ids, policy_i
             return False, f"Policy {policy_id} not found"
 
         policy = policies[0]
-        print(f"Validating against policy: {policy}")
         is_valid, reason = check_entry_for_access(policy, account_id, permission_set_id, parent_ou)
         if is_valid:
             return True, f"Policy-based grant (policy: {policy_id})"
         return False, "Account/permission not in the selected policy"
-
-    # No specific policy - check all eligibilities (legacy flow)
-    print(f"Eligibility entries: {eligibility_entries}")
 
     # Collect all policy IDs from policy-based eligibilities
     all_policy_ids = []
@@ -167,7 +162,6 @@ def validate_request(account_id, permission_set_id, user_id, group_ids, policy_i
             for pid in entry_policy_ids:
                 policy = policies_map.get(pid)
                 if policy:
-                    print(f"Checking policy: {policy}")
                     is_valid, reason = check_entry_for_access(policy, account_id, permission_set_id, parent_ou)
                     if is_valid:
                         return True, f"Policy-based grant (policy: {pid})"

@@ -35,7 +35,6 @@ def parse_arn(arn):
 def send_ses_notification(
     source_email, source_arn, subject, message_html, to_addresses, cc_addresses
 ):
-    print(f"Sending email from {source_email} to {to_addresses},cc: {cc_addresses}, subject: {subject}, message: {message_html}")
     try:
         # Providing a source arn enables using an SES identity in another account
         if source_arn:
@@ -238,7 +237,6 @@ def send_slack_notifications(
 
 
 def lambda_handler(event: dict, context):
-    print(f"Received event: {event}")
     ses_notifications_enabled = event.get("ses_notifications_enabled", "")
     ses_source_email = event.get("ses_source_email", "")
     ses_source_arn = event.get("ses_source_arn", "")

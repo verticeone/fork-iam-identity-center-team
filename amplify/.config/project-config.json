@@ -5,7 +5,6 @@
   "projectName": "TEAMIDCAPP",
   "version": "3.1",
   "frontend": "javascript",
-  "packageManager": "npm",
   "javascript": {
     "framework": "react",
     "config": {
