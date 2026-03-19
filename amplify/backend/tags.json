@@ -5,6 +5,6 @@
   },
   {
     "Key": "environment",
-    "Value": "sandbox"
+    "Value": "prod"
   }
 ]

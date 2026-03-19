@@ -1,3 +1,3 @@
 {
-    "CloudTrailAuditLogs": "arn:aws:cloudtrail:eu-west-1:875445787275:eventdatastore/664f3d40-2022-47db-ae70-3e2d006f1aa2"
+    "CloudTrailAuditLogs": "read"
 }
