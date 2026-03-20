@@ -305,7 +305,8 @@ export async function addApprovers(data) {
     );
     return req.data.createApprovers.Id;
   } catch (err) {
-    console.log("error adding Approvers");
+    console.log("error adding Approvers", err);
+    throw err;
   }
 }
 
@@ -353,7 +354,8 @@ export async function addPolicy(data) {
     );
     return req.data.createEligibility.id;
   } catch (err) {
-    console.log("error creating policy");
+    console.log("error creating policy", err);
+    throw err;
   }
 }
 
@@ -364,7 +366,8 @@ export async function delPolicy(data) {
     );
     return req.data.deleteEligibility;
   } catch (err) {
-    console.log("error deleting policy");
+    console.log("error deleting policy", err);
+    throw err;
   }
 }
 
@@ -375,7 +378,8 @@ export async function editPolicy(data) {
     );
     return req.data.updateEligibility;
   } catch (err) {
-    console.log("error updating policy");
+    console.log("error updating policy", err);
+    throw err;
   }
 }
 
@@ -504,7 +508,8 @@ export async function addPolicyTemplate(data) {
     );
     return req.data.createPolicies.id;
   } catch (err) {
-    console.log("error creating policy template");
+    console.log("error creating policy template", err);
+    throw err;
   }
 }
 
@@ -515,7 +520,8 @@ export async function editPolicyTemplate(data) {
     );
     return req.data.updatePolicies;
   } catch (err) {
-    console.log("error updating policy template");
+    console.log("error updating policy template", err);
+    throw err;
   }
 }
 

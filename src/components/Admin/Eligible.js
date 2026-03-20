@@ -500,33 +500,57 @@ function Eligible(props) {
                     approvalRequired: false,
                     duration: "0"
                 };
-                editPolicy(data).then(() => {
-                    views();
-                    props.addNotification([
-                        {
-                            type: "success",
-                            content: `Policy removed from eligibility successfully`,
-                            dismissible: true,
-                            onDismiss: () => props.addNotification([]),
-                        },
-                    ]);
-                });
+                editPolicy(data)
+                    .then(() => {
+                        views();
+                        props.addNotification([
+                            {
+                                type: "success",
+                                content: `Policy removed from eligibility successfully`,
+                                dismissible: true,
+                                onDismiss: () => props.addNotification([]),
+                            },
+                        ]);
+                    })
+                    .catch((err) => {
+                        const errorMessage = err?.errors?.[0]?.message || "Failed to remove policy from eligibility";
+                        props.addNotification([
+                            {
+                                type: "error",
+                                content: errorMessage,
+                                dismissible: true,
+                                onDismiss: () => props.addNotification([]),
+                            },
+                        ]);
+                    });
             } else {
                 // Delete entire eligibility (legacy or single policy)
                 const data = {
                     id: item.id,
                 };
-                delPolicy(data).then(() => {
-                    views();
-                    props.addNotification([
-                        {
-                            type: "success",
-                            content: `Eligibility deleted successfully`,
-                            dismissible: true,
-                            onDismiss: () => props.addNotification([]),
-                        },
-                    ]);
-                });
+                delPolicy(data)
+                    .then(() => {
+                        views();
+                        props.addNotification([
+                            {
+                                type: "success",
+                                content: `Eligibility deleted successfully`,
+                                dismissible: true,
+                                onDismiss: () => props.addNotification([]),
+                            },
+                        ]);
+                    })
+                    .catch((err) => {
+                        const errorMessage = err?.errors?.[0]?.message || "Failed to delete eligibility";
+                        props.addNotification([
+                            {
+                                type: "error",
+                                content: errorMessage,
+                                dismissible: true,
+                                onDismiss: () => props.addNotification([]),
+                            },
+                        ]);
+                    });
             }
         });
     }
@@ -587,6 +611,16 @@ function Eligible(props) {
                             },
                         ]);
                     }
+                }).catch((err) => {
+                    setConfirmLoading(false);
+                    props.addNotification([
+                        {
+                            type: "error",
+                            content: err.errors?.[0]?.message || "Error updating eligibility policy",
+                            dismissible: true,
+                            onDismiss: () => props.addNotification([]),
+                        },
+                    ]);
                 });
             }
         });
@@ -831,17 +865,30 @@ function Eligible(props) {
                             duration: duration
                         };
                     }
-                    addPolicy(data).then(() => {
-                        views();
-                        props.addNotification([
-                            {
-                                type: "success",
-                                content: "Eligibility policy added successfully",
-                                dismissible: true,
-                                onDismiss: () => props.addNotification([]),
-                            },
-                        ]);
-                    });
+                    addPolicy(data)
+                        .then(() => {
+                            views();
+                            props.addNotification([
+                                {
+                                    type: "success",
+                                    content: "Eligibility policy added successfully",
+                                    dismissible: true,
+                                    onDismiss: () => props.addNotification([]),
+                                },
+                            ]);
+                        })
+                        .catch((err) => {
+                            setSubmitLoading(false);
+                            const errorMessage = err?.errors?.[0]?.message || "Failed to add eligibility policy";
+                            props.addNotification([
+                                {
+                                    type: "error",
+                                    content: errorMessage,
+                                    dismissible: true,
+                                    onDismiss: () => props.addNotification([]),
+                                },
+                            ]);
+                        });
                 });
             } else {
                 setSubmitLoading(false);

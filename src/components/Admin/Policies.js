@@ -400,17 +400,29 @@ function Policies(props) {
           approverGroupIds: approverGroup.map(({ value, label }) => ({ name: label, id: value })),
           duration: duration
         };
-        editPolicyTemplate(data).then(() => {
-          views();
-          props.addNotification([
-            {
-              type: "success",
-              content: "Policy updated successfully",
-              dismissible: true,
-              onDismiss: () => props.addNotification([]),
-            },
-          ]);
-        });
+        editPolicyTemplate(data)
+          .then(() => {
+            views();
+            props.addNotification([
+              {
+                type: "success",
+                content: "Policy updated successfully",
+                dismissible: true,
+                onDismiss: () => props.addNotification([]),
+              },
+            ]);
+          })
+          .catch((err) => {
+            const errorMessage = err?.errors?.[0]?.message || "Failed to update policy";
+            props.addNotification([
+              {
+                type: "error",
+                content: errorMessage,
+                dismissible: true,
+                onDismiss: () => props.addNotification([]),
+              },
+            ]);
+          });
       }
     });
   }
@@ -529,14 +541,22 @@ function Policies(props) {
       setPolicyNameError("Enter a policy name");
       valid = false;
     }
-    if (action === "submit") {
-      // Check if policy name already exists
-      const nameExists = allItems.some(
-        (item) => item.id.toLowerCase() === policyName.toLowerCase()
-      );
-      if (nameExists) {
-        setPolicyNameError("Policy with this name already exists");
+    if (action === "submit" && policyName) {
+      if (!/^[a-zA-Z0-9\-_#]+$/.test(policyName.trim())) {
+        setPolicyNameError("Policy name can only contain alphanumeric characters, hyphens, underscores and #");
         valid = false;
+      } else if (policyName.trim().length > 2048) {
+        setPolicyNameError("Policy name exceeds maximum length of 2048 characters");
+        valid = false;
+      } else {
+        // Check if policy name already exists
+        const nameExists = allItems.some(
+          (item) => item.id.toLowerCase() === policyName.toLowerCase()
+        );
+        if (nameExists) {
+          setPolicyNameError("Policy with this name already exists");
+          valid = false;
+        }
       }
     }
     if (approvalRequired && approverGroup.length < 1) {
@@ -560,17 +580,30 @@ function Policies(props) {
           approverGroupIds: approverGroup.map(({ value, label }) => ({ name: label, id: value })),
           duration: duration
         };
-        addPolicyTemplate(data).then(() => {
-          views();
-          props.addNotification([
-            {
-              type: "success",
-              content: "Policy added successfully",
-              dismissible: true,
-              onDismiss: () => props.addNotification([]),
-            },
-          ]);
-        });
+        addPolicyTemplate(data)
+          .then(() => {
+            views();
+            props.addNotification([
+              {
+                type: "success",
+                content: "Policy added successfully",
+                dismissible: true,
+                onDismiss: () => props.addNotification([]),
+              },
+            ]);
+          })
+          .catch((err) => {
+            setSubmitLoading(false);
+            const errorMessage = err?.errors?.[0]?.message || "Failed to create policy";
+            props.addNotification([
+              {
+                type: "error",
+                content: errorMessage,
+                dismissible: true,
+                onDismiss: () => props.addNotification([]),
+              },
+            ]);
+          });
       } else {
         setSubmitLoading(false);
       }

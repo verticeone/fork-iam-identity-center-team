@@ -4,6 +4,7 @@
 # Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from botocore.exceptions import ClientError
 import boto3
@@ -31,6 +32,57 @@ def get_mgmt_account_id():
 
 
 mgmt_account_id = None
+
+
+def batch_get_with_backoff(table_name, keys, batch_size=100, max_no_progress=5, max_time_per_batch=10):
+    """
+    Perform DynamoDB batch_get_item with exponential backoff for UnprocessedKeys.
+
+    Fails if no progress made after max_no_progress retries or max_time_per_batch seconds.
+
+    Args:
+        table_name: Name of the DynamoDB table
+        keys: List of key dictionaries (e.g., [{'id': 'key1'}, {'id': 'key2'}])
+        batch_size: Maximum items per batch (default 100, DynamoDB limit)
+        max_no_progress: Max retries without progress before failing (default 5)
+        max_time_per_batch: Max seconds per batch before failing (default 10)
+
+    Returns:
+        List of all retrieved items
+
+    Raises:
+        Exception: If unable to fetch all items due to persistent throttling
+    """
+    if not keys:
+        return []
+
+    all_items = []
+
+    for i in range(0, len(keys), batch_size):
+        batch_keys = keys[i:i + batch_size]
+        request_items = {table_name: {'Keys': batch_keys}}
+        no_progress_count = 0
+        batch_start = time.time()
+
+        while request_items:
+            response = dynamodb.batch_get_item(RequestItems=request_items)
+            items = response.get('Responses', {}).get(table_name, [])
+            all_items.extend(items)
+            request_items = response.get('UnprocessedKeys', {})
+
+            if request_items:
+                if items:
+                    no_progress_count = 0
+                else:
+                    no_progress_count += 1
+
+                elapsed = time.time() - batch_start
+                if no_progress_count >= max_no_progress or elapsed >= max_time_per_batch:
+                    raise Exception(f"DynamoDB throttling: unable to fetch all items after {elapsed:.1f}s")
+
+                time.sleep(min(0.05 * (2 ** no_progress_count), 2))
+
+    return all_items
 
 
 def get_settings():
@@ -188,58 +240,13 @@ def list_account_for_ou(ou_id):
 
 def get_entitlements(ids):
     eligibility_keys = [{'id': entity_id} for entity_id in ids if entity_id]
-    if not eligibility_keys:
-        return []
-
-    all_items = []
-    batch_size = 100
-
-    # Process in chunks of 100 (DynamoDB batch_get_item limit)
-    for i in range(0, len(eligibility_keys), batch_size):
-        batch_keys = eligibility_keys[i:i + batch_size]
-
-        request_items = {
-            eligibility_table_name: {
-                'Keys': batch_keys
-            }
-        }
-
-        # Handle UnprocessedKeys with retry
-        while request_items:
-            response = dynamodb.batch_get_item(RequestItems=request_items)
-            all_items.extend(response.get('Responses', {}).get(eligibility_table_name, []))
-            request_items = response.get('UnprocessedKeys', {})
-
-    return all_items
+    return batch_get_with_backoff(eligibility_table_name, eligibility_keys)
 
 
 def get_policies(policy_ids):
     """Fetch policies by IDs from DynamoDB with batching and retry."""
-    if not policy_ids:
-        return []
-
     policy_keys = [{'id': policy_id} for policy_id in policy_ids if policy_id]
-    if not policy_keys:
-        return []
-
-    all_items = []
-    batch_size = 100
-
-    for i in range(0, len(policy_keys), batch_size):
-        batch_keys = policy_keys[i:i + batch_size]
-
-        request_items = {
-            policies_table_name: {
-                'Keys': batch_keys
-            }
-        }
-
-        while request_items:
-            response = dynamodb.batch_get_item(RequestItems=request_items)
-            all_items.extend(response.get('Responses', {}).get(policies_table_name, []))
-            request_items = response.get('UnprocessedKeys', {})
-
-    return all_items
+    return batch_get_with_backoff(policies_table_name, policy_keys)
 
 
 def resolve_all_ous_to_accounts(ou_ids):

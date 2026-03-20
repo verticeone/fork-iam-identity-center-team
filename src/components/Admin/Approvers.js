@@ -442,6 +442,12 @@ function Approvers(props) {
         if (!groupName || groupName.trim() === "") {
           setResourceError("Enter a valid group name");
           valid = false;
+        } else if (!/^[a-zA-Z0-9\-_#]+$/.test(groupName.trim())) {
+          setResourceError("Group name can only contain alphanumeric characters, hyphens, underscores and #");
+          valid = false;
+        } else if (groupName.trim().length > 2048) {
+          setResourceError("Group name exceeds maximum length of 2048 characters");
+          valid = false;
         } else if (allItems.some(item => item.id === groupName.trim())) {
           setResourceError("Group name already exists");
           valid = false;
@@ -468,17 +474,29 @@ function Approvers(props) {
             id: groupName.trim(),
             ticketNo: ticketNo,
           };
-          addApprovers(data).then(() => {
-            views();
-            props.addNotification([
-              {
-                type: "success",
-                content: "Approver group added successfully",
-                dismissible: true,
-                onDismiss: () => props.addNotification([]),
-              },
-            ]);
-          });
+          addApprovers(data)
+            .then(() => {
+              views();
+              props.addNotification([
+                {
+                  type: "success",
+                  content: "Approver group added successfully",
+                  dismissible: true,
+                  onDismiss: () => props.addNotification([]),
+                },
+              ]);
+            })
+            .catch((err) => {
+              const errorMessage = err?.errors?.[0]?.message || "Failed to add approver group";
+              props.addNotification([
+                {
+                  type: "error",
+                  content: errorMessage,
+                  dismissible: true,
+                  onDismiss: () => props.addNotification([]),
+                },
+              ]);
+            });
         } else {
           resource.forEach((item) => {
             const data = {
@@ -489,17 +507,29 @@ function Approvers(props) {
               id: item.value,
               ticketNo: ticketNo,
             };
-            addApprovers(data).then(() => {
-              views();
-              props.addNotification([
-                {
-                  type: "success",
-                  content: "Approvers added successfully",
-                  dismissible: true,
-                  onDismiss: () => props.addNotification([]),
-                },
-              ]);
-            });
+            addApprovers(data)
+              .then(() => {
+                views();
+                props.addNotification([
+                  {
+                    type: "success",
+                    content: "Approvers added successfully",
+                    dismissible: true,
+                    onDismiss: () => props.addNotification([]),
+                  },
+                ]);
+              })
+              .catch((err) => {
+                const errorMessage = err?.errors?.[0]?.message || "Failed to add approver";
+                props.addNotification([
+                  {
+                    type: "error",
+                    content: errorMessage,
+                    dismissible: true,
+                    onDismiss: () => props.addNotification([]),
+                  },
+                ]);
+              });
           });
         }
       }
