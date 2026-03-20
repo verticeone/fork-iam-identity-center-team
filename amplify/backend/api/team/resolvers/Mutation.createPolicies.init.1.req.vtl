@@ -23,14 +23,14 @@ $util.qr($ctx.args.input.put("modifiedBy", $ctx.identity.username))
 
 ## Validate accounts
 #foreach($arg in $ctx.args.input.accounts)
-    #if (!$util.matches("^\\d{12}$", $arg.id))
+    #if (!$util.matches("^\d{12}$", $arg.id))
         $util.error('Invalid account ID format. Must be 12 digits.')
     #end
 #end
 
 ## Validate permissions
 #foreach($arg in $ctx.args.input.permissions)
-    #if (!$util.matches("^arn:aws:sso:::permissionSet\\/ssoins-[a-zA-Z0-9-.]{16}\\/ps-[a-zA-Z0-9-.]{16}$", $arg.id))
+    #if (!$util.matches("^arn:aws:sso:::permissionSet\/ssoins-[a-zA-Z0-9-.]{16}\/ps-[a-zA-Z0-9-.]{16}$", $arg.id))
         $util.error('Invalid permission set ARN format.')
     #end
 #end
