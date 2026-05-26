@@ -21,16 +21,24 @@ ACCOUNT_ID = os.environ.get("ACCOUNT_ID", "")
 
 
 def get_mgmt_account_id():
-    """Get the management account ID from Organizations"""
+    """Get the management account ID from Organizations. Fails fast if unavailable."""
     try:
         response = org_client.describe_organization()
         return response["Organization"]["MasterAccountId"]
     except ClientError as e:
-        print(f"Error getting management account: {e}")
-        return None
+        raise RuntimeError(f"Cannot retrieve management account ID: {e}") from e
 
 
-mgmt_account_id = get_mgmt_account_id()
+# Lazy init - not called at module level to avoid cold start failures
+_mgmt_account_id = None
+
+
+def ensure_mgmt_account_id():
+    """Lazy init for mgmt_account_id. Retries on each invocation if previously failed."""
+    global _mgmt_account_id
+    if _mgmt_account_id is None:
+        _mgmt_account_id = get_mgmt_account_id()
+    return _mgmt_account_id
 
 
 def get_settings():
@@ -45,6 +53,7 @@ def get_settings():
 
 def list_accounts_for_ou(ou_id):
     """List accounts for an OU from Organizations API"""
+    mgmt_account_id = ensure_mgmt_account_id()
     deployed_in_mgmt = ACCOUNT_ID == mgmt_account_id
     accounts = []
 
@@ -101,9 +110,25 @@ def populate_cache(ou_id):
         )
     except ClientError as e:
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            # Another process is populating - check if stuck
+            try:
+                item = cache_table.get_item(Key={"ou_id": ou_id}).get("Item", {})
+                if item.get("status") == "populating":
+                    cached_at = int(item.get("cached_at", 0))
+                    # If stuck for more than 30 seconds, force refresh
+                    if current_time - cached_at > 30:
+                        print(f"Cache stuck in populating state for OU {ou_id}, forcing refresh")
+                        cache_table.delete_item(Key={"ou_id": ou_id})
+                        return populate_cache(ou_id)
+            except Exception as check_error:
+                print(f"Error checking stuck cache: {check_error}")
+
+            # Wait and retry read
             time.sleep(0.5)
             cached = get_cached_accounts(ou_id)
-            return cached if cached is not None else []
+            if cached is not None:
+                return cached
+            return list_accounts_for_ou(ou_id)
         raise
 
     try:
@@ -129,10 +154,14 @@ def populate_cache(ou_id):
 
 def get_accounts_for_ou(ou_id):
     """Get accounts for an OU, using cache if available"""
-    cached = get_cached_accounts(ou_id)
-    if cached is not None:
-        return cached
-    return populate_cache(ou_id)
+    try:
+        cached = get_cached_accounts(ou_id)
+        if cached is not None:
+            return cached
+        return populate_cache(ou_id)
+    except Exception as e:
+        print(f"Error getting accounts for OU {ou_id}: {e}")
+        return []
 
 
 def scan_segment(segment, total_segments):
