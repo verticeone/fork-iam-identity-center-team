@@ -33,8 +33,10 @@ import {
   REQUEST_FLOW_OPTIONS
 } from "../Shared/eligibilityModes";
 import { useHistory } from "react-router-dom";
-import { API, graphqlOperation } from "aws-amplify";
+import { generateClient } from "aws-amplify/api";
 import { onPublishPolicy } from "../../graphql/subscriptions";
+
+const client = generateClient();
 import params from "../../parameters.json";
 
 function CopyableContact({ value }) {
@@ -211,9 +213,9 @@ function Request(props) {
   };
 
   function publishEvent() {
-    const subscription = API.graphql(graphqlOperation(onPublishPolicy)).subscribe({
-      next: (result) => {
-        const policy = result.value.data.onPublishPolicy.policy;
+    const subscription = client.graphql({ query: onPublishPolicy }).subscribe({
+      next: ({ data }) => {
+        const policy = data.onPublishPolicy.policy;
         if (!policy || policy.length === 0) {
           setNoEligibility(true);
           setInitialLoading(false);
@@ -690,11 +692,23 @@ function Request(props) {
                   loadingText="Loading policies"
                   filteringType="auto"
                   empty="No eligible policies found"
-                  options={policies.map((policy) => ({
-                    label: policy.id,
-                    value: policy.id,
-                    description: `Accounts: ${policy.accounts?.length || 0}, Permissions: ${policy.permissions?.length || 0}`,
-                  }))}
+                  options={policies.map((policy) => {
+                    const sortedAccounts = [...(policy.accounts || [])].sort((a, b) => {
+                      const aIsProd = /prod/i.test(a.name);
+                      const bIsProd = /prod/i.test(b.name);
+                      return (bIsProd - aIsProd) || a.name.localeCompare(b.name);
+                    });
+                    const accountNames = sortedAccounts.slice(0, 5).map(a => a.name).join(", ") || "None";
+                    const permNames = (policy.permissions || []).slice(0, 5).map(p => p.name).join(", ") || "None";
+                    const moreAccounts = (policy.accounts?.length || 0) > 5 ? ` +${policy.accounts.length - 5} more` : "";
+                    const morePerms = (policy.permissions?.length || 0) > 5 ? ` +${policy.permissions.length - 5} more` : "";
+
+                    return {
+                      label: policy.id,
+                      value: policy.id,
+                      description: `Accounts: ${accountNames}${moreAccounts} | Permissions: ${permNames}${morePerms}`,
+                    };
+                  })}
                   selectedOption={selectedPolicy}
                   onChange={({ detail }) => handlePolicySelect(detail.selectedOption)}
                   selectedAriaLabel="selected"

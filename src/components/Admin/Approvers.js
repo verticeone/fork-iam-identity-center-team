@@ -25,18 +25,19 @@ import {
 } from "@awsui/components-react";
 import { useCollection } from "@awsui/collection-hooks";
 import Ous from "../Shared/Ous";
-import { API, graphqlOperation } from "aws-amplify";
+import { generateClient } from "aws-amplify/api";
 import { onPublishOUs } from "../../graphql/subscriptions";
+
+const client = generateClient();
 import {
   getAllApprovers,
   fetchAccounts,
   fetchOUs,
   addApprovers,
-  delApprover,
   editApprover,
   fetchIdCGroups,
   getSetting,
-  getApproverGroupUsage
+  deleteApproverGroupsBatch
 } from "../Shared/RequestService";
 import "../../index.css";
 
@@ -307,38 +308,40 @@ function Approvers(props) {
 
   async function handleDelete() {
     setConfirmLoading(true);
-    for (const item of selectedItems) {
-      // Check if approver group is used in any policy
-      const usedInPolicies = await getApproverGroupUsage(item.id);
-      if (usedInPolicies.length > 0) {
-        setConfirmLoading(false);
-        setDeleteVisible(false);
-        props.addNotification([
-          {
-            type: "error",
-            content: `Cannot delete "${item.name}" - it is used in ${usedInPolicies.length} policy/policies. Remove it from policies first.`,
-            dismissible: true,
-            onDismiss: () => props.addNotification([]),
-          },
-        ]);
-        return;
-      }
-      const data = {
-        id: item.id,
-      };
-      await delApprover(data);
-    }
+    const ids = selectedItems.map(item => item.id);
+    const result = await deleteApproverGroupsBatch(ids);
+
     views();
     setConfirmLoading(false);
     setDeleteVisible(false);
-    props.addNotification([
-      {
-        type: "success",
-        content: `Approvers deleted successfully`,
-        dismissible: true,
-        onDismiss: () => props.addNotification([]),
-      },
-    ]);
+
+    if (result.failed && result.failed.length > 0) {
+      const failedMessages = result.failed.map(f =>
+        f.usedIn?.length > 0
+          ? `${f.id}: Used in: ${f.usedIn.join(', ')}`
+          : `${f.id}: ${f.reason}`
+      ).join('\n');
+      const deletedPart = result.deleted?.length > 0
+        ? `Deleted: ${result.deleted.join(', ')}\n`
+        : '';
+      props.addNotification([
+        {
+          type: result.deleted?.length > 0 ? "warning" : "error",
+          content: `${deletedPart}Failed:\n${failedMessages}`,
+          dismissible: true,
+          onDismiss: () => props.addNotification([]),
+        },
+      ]);
+    } else {
+      props.addNotification([
+        {
+          type: "success",
+          content: `Deleted: ${result.deleted?.join(', ') || 'none'}`,
+          dismissible: true,
+          onDismiss: () => props.addNotification([]),
+        },
+      ]);
+    }
   }
 
   function handleConfirmEdit() {
@@ -406,12 +409,12 @@ function Approvers(props) {
   function getOUs() {
     setOUStatus("loading");
     fetchOUs().then(() =>{
-      const subscription = API.graphql(
-        graphqlOperation(onPublishOUs)
-      ).subscribe({
-        next: (result) => {
-          const data = result.value.data.onPublishOUs.ous
-          setOUs(JSON.parse(data));
+      const subscription = client.graphql({
+        query: onPublishOUs
+      }).subscribe({
+        next: ({ data }) => {
+          const ousData = data.onPublishOUs.ous;
+          setOUs(JSON.parse(ousData));
           setOUStatus("finished");
           subscription.unsubscribe();
         },

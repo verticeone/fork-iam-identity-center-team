@@ -3,108 +3,122 @@
 // http://aws.amazon.com/agreement or other written agreement between Customer and either
 // Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
 import React, { useEffect, useState } from "react";
-import { Amplify, Auth, Hub } from "aws-amplify";
-import { Spin, Layout } from "antd";
-import awsconfig from "./aws-exports";
+import { signInWithRedirect, fetchAuthSession } from "aws-amplify/auth";
+import { useAuthenticator } from "@aws-amplify/ui-react";
+import { Layout } from "antd";
 import Nav from "./components/Navigation/Nav";
-import home from "./media/Home.svg";
 import "./index.css";
-import { Button } from "@awsui/components-react";
+import { Button, Spinner } from "@awsui/components-react";
 
 const { Header, Content } = Layout;
 
-Amplify.configure(awsconfig);
-
-function Home(props) {
+function Home() {
   return (
     <Layout className="site-layout">
       <Header className="site-layout-background" style={{ padding: 0 }} />
       <Content className="layout">
-        <Spin spinning={props.loading} size="large">
-          <Button
-            className="homebutton"
-            variant="primary"
-            onClick={() => Auth.federatedSignIn()}
-          >
-            Federated Sign In
-          </Button>
-          <img src={home} alt="Homepage" className="home" />
-        </Spin>
+        <Button
+          className="homebutton"
+          variant="primary"
+          onClick={async () => {
+            await signInWithRedirect({ provider: { custom: 'IDC' } });
+          }}
+        >
+          Federated Sign In
+        </Button>
+        <img src="/Home.svg" alt="Homepage" className="home" />
       </Content>
     </Layout>
   );
 }
+
 function App() {
-  const [user, setUser] = useState(null);
+  const { user, authStatus } = useAuthenticator();
   const [groups, setGroups] = useState(null);
   const [cognitoGroups, setcognitoGroups] = useState([]);
   const [userId, setUserId] = useState(null);
   const [groupIds, setGroupIds] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState(null);
+  const [isReady, setIsReady] = useState(false);
 
+  // Wait for CSS to be applied before showing content (two frames for safety)
   useEffect(() => {
-    Hub.listen("auth", ({ payload: { event, data } }) => {
-      // eslint-disable-next-line default-case
-      switch (event) {
-        case "signIn":
-          console.log("User signed in");
-          break;
-        // eslint-disable-next-line no-fallthrough
-        case "cognitoHostedUI":
-          setData();
-          break;
-        case "signOut":
-          console.log("User signed out");
-          setLoading(false);
-          break;
-        case "signIn_failure":
-          console.log("User sign in failure");
-          break;
-        case "cognitoHostedUI_failure":
-          console.log("Sign in failure");
-          break;
-      }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setIsReady(true);
+      });
     });
-
-    setData();
   }, []);
 
-  function setData() {
-    getUser().then((userData) => {
-      setUser(userData);
-      const payload = userData.signInUserSession.idToken.payload;
-      setcognitoGroups(payload["cognito:groups"]);
-      setUserId(payload.userId);
-      setGroupIds((payload.groupIds).split(','));
-      setGroups((payload.groups).split(','));
-      setLoading(false);
-    });
-  }
+  useEffect(() => {
+    // Handle auto-login from Access Portal (only if not already authenticated)
+    if (sessionStorage.getItem('auto-login-pending') === 'true' && authStatus !== "authenticated") {
+      // Don't remove flag until redirect completes - keeps spinner showing
+      signInWithRedirect({ provider: { custom: 'IDC' } });
+    }
+    // Clear flag only when authenticated
+    if (authStatus === "authenticated") {
+      sessionStorage.removeItem('auto-login-pending');
+    }
+  }, [authStatus]);
 
-  async function getUser() {
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      loadUserData();
+    }
+  }, [authStatus]);
+
+  async function loadUserData() {
     try {
-      const userData = await Auth.currentAuthenticatedUser();
-      return userData;
-    } catch {
-      setLoading(false);
-      return console.log("Not signed in");
+      const session = await fetchAuthSession();
+      const payload = session.tokens?.idToken?.payload;
+
+      if (payload) {
+        const groupsValue = (payload.groups || "").split(",");
+        setcognitoGroups(payload["cognito:groups"]);
+        setUserId(payload.userId);
+        setGroupIds((payload.groupIds || "").split(","));
+        setGroups(groupsValue);
+        setEmail(payload.email || payload["cognito:username"]?.replace("idc_", ""));
+      }
+    } catch (error) {
+      console.error("Error loading user data:", error);
     }
   }
 
+  // Show loading spinner while Amplify is configuring or CSS not ready
+  if (authStatus === "configuring" || !isReady) {
+    return (
+      <div className="loading-container">
+        <Spinner size="large" />
+      </div>
+    );
+  }
+
+  // Not authenticated - show login page
+  if (authStatus !== "authenticated") {
+    return <Home />;
+  }
+
+  // Authenticated but data not loaded yet
+  if (!groups) {
+    return (
+      <div className="loading-container">
+        <Spinner size="large" />
+      </div>
+    );
+  }
+
+  // Authenticated and data loaded
   return (
-    <div>
-      {groups ? (
-        <Nav
-          user={user}
-          groupIds={groupIds}
-          userId={userId}
-          groups={groups}
-          cognitoGroups={cognitoGroups}
-        />
-      ) : (
-        <Home loading={loading} />
-      )}
-    </div>
+    <Nav
+      user={user}
+      email={email}
+      groupIds={groupIds}
+      userId={userId}
+      groups={groups}
+      cognitoGroups={cognitoGroups}
+    />
   );
 }
 
