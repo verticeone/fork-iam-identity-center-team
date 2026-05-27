@@ -19,7 +19,6 @@ import * as teamqueryLogsResource from './functions/teamqueryLogs/resource';
 import { createSnsTopic } from './custom/sns';
 import { createStepFunctions } from './custom/stepfunctions';
 import { cloudTrailLake } from './custom/cloudtrailLake';
-import { createCwLogRole } from './custom/appsyncCloudwatchLogRole';
 
 // Python functions
 import { createTeamNotifications } from './functions/teamNotifications/resource';
@@ -158,9 +157,6 @@ const teamDeletePolicies = createTeamDeletePolicies({
 // 9. Create CloudTrail Lake Event Data Store (in data stack - same as log functions)
 const cloudTrailAuditLogs = process.env.CLOUDTRAIL_AUDIT_LOGS ?? 'read_write';
 const eventDataStoreArn = cloudTrailLake(dataStack, cloudTrailAuditLogs as any);
-
-// 10. Create AppSync CloudWatch Log Role
-createCwLogRole(dataStack, branchName);
 
 // Apply escape hatches for Amplify resources
 dataResource.applyEscapeHatches(backend);

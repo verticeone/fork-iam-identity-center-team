@@ -5,10 +5,10 @@ import {
   UserPoolClientIdentityProvider,
 } from 'aws-cdk-lib/aws-cognito';
 import type { Backend } from '../backend';
-import { appId, appIdLower, branchName } from '../config';
+import { appIdLower, appUrl, branchName } from '../config';
 
-// Generate callback URLs based on environment
-const appUrl = `https://${branchName}.${appId}.amplifyapp.com/`;
+// OAuth requires trailing slash for callback URLs
+const oauthCallbackUrl = appUrl.endsWith('/') ? appUrl : `${appUrl}/`;
 
 // SAML provider (IDC) is added after deployment via cognito.sh
 // because we need the callback URL first
@@ -67,8 +67,8 @@ export function applyEscapeHatches(backend: Backend) {
         identity_providers: [],
         domain: `${appIdLower}.auth.${region}.amazoncognito.com`,
         scopes: ['phone', 'email', 'openid', 'profile', 'aws.cognito.signin.user.admin'],
-        redirect_sign_in_uri: [appUrl],
-        redirect_sign_out_uri: [appUrl],
+        redirect_sign_in_uri: [oauthCallbackUrl],
+        redirect_sign_out_uri: [oauthCallbackUrl],
         response_type: 'code',
       },
     },
@@ -81,8 +81,8 @@ export function applyEscapeHatches(backend: Backend) {
     authSessionValidity: Duration.minutes(3),
     supportedIdentityProviders: [UserPoolClientIdentityProvider.COGNITO],
     oAuth: {
-      callbackUrls: [appUrl],
-      logoutUrls: [appUrl],
+      callbackUrls: [oauthCallbackUrl],
+      logoutUrls: [oauthCallbackUrl],
       flows: {
         authorizationCodeGrant: true,
         implicitCodeGrant: false,

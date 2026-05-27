@@ -2,13 +2,11 @@
 //  This AWS Content is provided subject to the terms of the AWS Customer Agreement available at
 //  http: // aws.amazon.com/agreement or other written agreement between Customer and either
 //  Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
+import { CloudTrailClient, paginateGetQueryResults } from "@aws-sdk/client-cloudtrail";
+
 const EventDataStore = (process.env.EVENT_DATA_STORE).split("/").pop();
 const REGION = process.env.REGION;
-const {
-    CloudTrailClient,
-    paginateGetQueryResults,
-  } = require("@aws-sdk/client-cloudtrail");
-  const client = new CloudTrailClient({ region: REGION });
+const client = new CloudTrailClient({ region: REGION });
 
 
 const get_query = async (queryId) => {
@@ -41,7 +39,7 @@ try {
 }
 };
   
-exports.handler = async (event) => {
+export const handler = async (event) => {
     const queryId = event["arguments"]["queryId"]
     return get_query(queryId);
 };
