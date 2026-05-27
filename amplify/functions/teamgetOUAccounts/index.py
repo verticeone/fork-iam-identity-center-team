@@ -21,18 +21,26 @@ def handler(event, context):
 
     results = []
     for ou_id in ou_ids:
-        cached = ou_cache.get_cached_accounts(ou_id)
-        if cached is not None:
+        try:
+            cached = ou_cache.get_cached_accounts(ou_id)
+            if cached is not None:
+                results.append({
+                    "ouId": ou_id,
+                    "accounts": cached,
+                    "cached": True
+                })
+            else:
+                accounts = ou_cache.populate_cache(ou_id)
+                results.append({
+                    "ouId": ou_id,
+                    "accounts": accounts,
+                    "cached": False
+                })
+        except Exception as e:
+            print(f"Error getting accounts for OU {ou_id}: {e}")
             results.append({
                 "ouId": ou_id,
-                "accounts": cached,
-                "cached": True
-            })
-        else:
-            accounts = ou_cache.populate_cache(ou_id)
-            results.append({
-                "ouId": ou_id,
-                "accounts": accounts,
+                "accounts": [],
                 "cached": False
             })
 

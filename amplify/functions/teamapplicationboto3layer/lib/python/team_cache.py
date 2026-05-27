@@ -20,14 +20,13 @@ class OUCache:
 
     @property
     def mgmt_account_id(self):
-        """Lazy load management account ID"""
+        """Lazy load management account ID. Fails fast if unavailable."""
         if self._mgmt_account_id is None:
             try:
                 response = self.org_client.describe_organization()
                 self._mgmt_account_id = response["Organization"]["MasterAccountId"]
             except ClientError as e:
-                print(f"Error getting management account ID: {e}")
-                self._mgmt_account_id = ""
+                raise RuntimeError(f"Cannot retrieve management account ID: {e}") from e
         return self._mgmt_account_id
 
     def get_cached_accounts(self, ou_id):
@@ -91,9 +90,25 @@ class OUCache:
             )
         except ClientError as e:
             if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                # Another process is populating - check if stuck
+                try:
+                    item = self.table.get_item(Key={"ou_id": ou_id}).get("Item", {})
+                    if item.get("status") == "populating":
+                        cached_at = int(item.get("cached_at", 0))
+                        # If stuck for more than 30 seconds, force refresh
+                        if current_time - cached_at > 30:
+                            print(f"Cache stuck in populating state for OU {ou_id}, forcing refresh")
+                            self.table.delete_item(Key={"ou_id": ou_id})
+                            return self.populate_cache(ou_id)
+                except Exception as check_error:
+                    print(f"Error checking stuck cache: {check_error}")
+
+                # Wait and retry read
                 time.sleep(0.5)
                 cached = self.get_cached_accounts(ou_id)
-                return cached if cached is not None else []
+                if cached is not None:
+                    return cached
+                return self.list_accounts_for_ou(ou_id)
             raise
 
         try:
@@ -118,13 +133,17 @@ class OUCache:
 
     def get_accounts(self, ou_id):
         """Get accounts for an OU, using cache if available"""
-        cached = self.get_cached_accounts(ou_id)
-        if cached is not None:
-            print(f"OU {ou_id}: {len(cached)} accounts (cached)")
-            return cached
-        accounts = self.populate_cache(ou_id)
-        print(f"OU {ou_id}: {len(accounts)} accounts (fetched)")
-        return accounts
+        try:
+            cached = self.get_cached_accounts(ou_id)
+            if cached is not None:
+                print(f"OU {ou_id}: {len(cached)} accounts (cached)")
+                return cached
+            accounts = self.populate_cache(ou_id)
+            print(f"OU {ou_id}: {len(accounts)} accounts (fetched)")
+            return accounts
+        except Exception as e:
+            print(f"Error getting accounts for OU {ou_id}: {e}")
+            return []
 
     def invalidate(self, ou_id):
         """Invalidate cache for an OU"""

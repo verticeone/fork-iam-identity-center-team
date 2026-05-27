@@ -64,6 +64,7 @@ def get_mgmt_ps():
         return all_permissions
     except ClientError as e:
         print(e.response['Error']['Message'])
+        return []
 
 def handler(event, context):
     permissions = get_mgmt_ps()

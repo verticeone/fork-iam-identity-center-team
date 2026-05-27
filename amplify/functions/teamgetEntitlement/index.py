@@ -269,7 +269,7 @@ def resolve_all_ous_to_accounts(ou_ids):
     if not ou_ids:
         return {}
 
-    # Ensure mgmt_account_id is initialized before parallel execution
+    # Initialize mgmt_account_id before parallel execution
     ensure_mgmt_account_id()
 
     # Use ThreadPoolExecutor for parallel OU resolution
