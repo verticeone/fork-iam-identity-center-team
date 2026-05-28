@@ -3,22 +3,9 @@ body {
   background: var(--color-background-layout-main-3yk4Ua, #f2f3f3);
 }
 #h {
-  display: block;
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 1000;
-  margin: 0;
-  background: #232f3e;
-  background: var(--color-background-home-header-1-wlvl, #232f3e);
-  font-family: "Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif;
-}
-.awsui-visual-refresh #h {
-  background: #232f3e;
-}
-.main {
-  margin-top: 5rem;
 }
 .logo {
   height: 38px;

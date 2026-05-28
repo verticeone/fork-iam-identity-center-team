@@ -10,9 +10,9 @@
     "@aws-sdk/credential-provider-node": "^3.76.0",
     "@aws-sdk/protocol-http": "^3.58.0",
     "@aws-sdk/signature-v4": "^3.58.0",
-    "@awsui/collection-hooks": "^1.0.21",
-    "@awsui/components-react": "^3.0.312",
-    "@awsui/global-styles": "^1.0.10",
+    "@cloudscape-design/collection-hooks": "^1.0.0",
+    "@cloudscape-design/components": "^3.0.0",
+    "@cloudscape-design/global-styles": "^1.0.0",
     "@hookform/resolvers": "^2.8.8",
     "antd": "^4.18.0",
     "aws-amplify": "^6.17.0",
@@ -53,5 +53,24 @@
     "url": "codecommit::us-east-1://pim@sso-pim"
   },
   "author": "taiwo awoyinfa",
-  "license": "ISC"
+  "license": "ISC",
+  "//cloudscape-migration": "Migrated from @awsui/* to @cloudscape-design/* (2026-05-28)",
+  "//overrides": "TODO: Remove when upstream packages fix these vulnerabilities",
+  "overrides": {
+    "handlebars": "4.7.9",
+    "immutable": "3.8.3",
+    "js-cookie": "3.0.7",
+    "fast-uri": "3.1.2",
+    "lodash": "4.18.1",
+    "@aws-sdk/core": {
+      "fast-xml-parser": "4.5.5"
+    },
+    "@aws-sdk/xml-builder": {
+      "fast-xml-parser": "5.7.2"
+    },
+    "@aws-amplify/storage": {
+      "fast-xml-parser": "5.7.2"
+    },
+    "fast-xml-builder": "1.2.0"
+  }
 }

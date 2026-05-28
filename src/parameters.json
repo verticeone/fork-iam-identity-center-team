@@ -1,4 +1,9 @@
 {
     "Login": "sso login URL",
-    "DeploymentType": "management"
+    "DeploymentType": "management",
+    "Version": "v1.4.2",
+    "ReleasesUrl": "https://github.com/aws-samples/iam-identity-center-team/releases/tag/v1.4.2",
+    "DocumentationUrl": "https://aws-samples.github.io/iam-identity-center-team/",
+    "FeedbackUrl": "https://pulse.aws/survey/PZDTVK85",
+    "IssuesUrl": "https://github.com/aws-samples/iam-identity-center-team/issues"
 }

@@ -3,9 +3,9 @@ import React, { Suspense } from "react";
 import ReactDOM from "react-dom";
 import { Amplify } from "aws-amplify";
 import { Authenticator } from "@aws-amplify/ui-react";
-import { Spinner } from "@awsui/components-react";
+import { Spinner } from "@cloudscape-design/components";
 import awsconfig from "../amplify_outputs.json";
-import "@awsui/global-styles/index.css";
+import "@cloudscape-design/global-styles/index.css";
 import "./index.css";
 // Configure Amplify BEFORE loading App to handle OAuth callback
 Amplify.configure(awsconfig);

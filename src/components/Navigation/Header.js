@@ -4,11 +4,11 @@
 // Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
 /* eslint-disable jsx-a11y/anchor-is-valid */
 import React, { useState } from "react";
-import Alert from "@awsui/components-react/alert";
+import Alert from "@cloudscape-design/components/alert";
 import "../../index.css";
 import params from "../../parameters.json";
 import { signOut } from "aws-amplify/auth";
-import TopNavigation from "@awsui/components-react/top-navigation";
+import TopNavigation from "@cloudscape-design/components/top-navigation";
 import { useHistory } from "react-router-dom";
 
 function Header(props) {
@@ -66,8 +66,8 @@ function Header(props) {
           },
           {
             type: "button",
-            text: "v1.4.2",
-            href: "https://github.com/aws-samples/iam-identity-center-team/releases/tag/v1.4.2",
+            text: params.Version,
+            href: params.ReleasesUrl,
             external: true,
             externalIconAriaLabel: " (opens in a new tab)",
           },
@@ -90,7 +90,7 @@ function Header(props) {
                   {
                     id: "documentation",
                     text: "Documentation",
-                    href: "https://aws-samples.github.io/iam-identity-center-team/",
+                    href: params.DocumentationUrl,
                     external: true,
                     externalIconAriaLabel: " (opens in new tab)",
                   },
@@ -98,14 +98,14 @@ function Header(props) {
                   {
                     id: "feedback",
                     text: "Feedback",
-                    href: "https://pulse.aws/survey/PZDTVK85",
+                    href: params.FeedbackUrl,
                     external: true,
                     externalIconAriaLabel: " (opens in new tab)",
                   },
                   {
                     id: "bug",
                     text: "Report Bug",
-                    href: "https://github.com/aws-samples/iam-identity-center-team/issues",
+                    href: params.IssuesUrl,
                     external: true,
                     externalIconAriaLabel: " (opens in new tab)",
                   },

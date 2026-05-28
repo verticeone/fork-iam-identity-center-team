@@ -12,7 +12,7 @@ import {
   Textarea,
   Alert,
   Box,
-} from "@awsui/components-react";
+} from "@cloudscape-design/components";
 import { invalidateOUCache } from "../Shared/RequestService";
 
 function CacheManagement(props) {

@@ -10,7 +10,17 @@
 const fs = require("fs");
 const path = require("path");
 
-const { SSO_LOGIN, TEAM_ADMIN_GROUP, TEAM_AUDITOR_GROUP, TEAM_ACCOUNT } = process.env;
+const {
+  SSO_LOGIN,
+  TEAM_ADMIN_GROUP,
+  TEAM_AUDITOR_GROUP,
+  TEAM_ACCOUNT,
+  TEAM_VERSION,
+  TEAM_RELEASES_URL,
+  TEAM_DOCUMENTATION_URL,
+  TEAM_FEEDBACK_URL,
+  TEAM_ISSUES_URL
+} = process.env;
 
 async function update_react_parameters() {
   console.log("Updating React frontend parameters...");
@@ -37,6 +47,31 @@ async function update_react_parameters() {
   if (TEAM_AUDITOR_GROUP) {
     reactParametersJson.teamAuditorGroup = TEAM_AUDITOR_GROUP;
     console.log(`  teamAuditorGroup: ${TEAM_AUDITOR_GROUP}`);
+  }
+
+  if (TEAM_VERSION) {
+    reactParametersJson.Version = TEAM_VERSION;
+    console.log(`  Version: ${TEAM_VERSION}`);
+  }
+
+  if (TEAM_RELEASES_URL) {
+    reactParametersJson.ReleasesUrl = TEAM_RELEASES_URL;
+    console.log(`  ReleasesUrl: ${TEAM_RELEASES_URL}`);
+  }
+
+  if (TEAM_DOCUMENTATION_URL) {
+    reactParametersJson.DocumentationUrl = TEAM_DOCUMENTATION_URL;
+    console.log(`  DocumentationUrl: ${TEAM_DOCUMENTATION_URL}`);
+  }
+
+  if (TEAM_FEEDBACK_URL) {
+    reactParametersJson.FeedbackUrl = TEAM_FEEDBACK_URL;
+    console.log(`  FeedbackUrl: ${TEAM_FEEDBACK_URL}`);
+  }
+
+  if (TEAM_ISSUES_URL) {
+    reactParametersJson.IssuesUrl = TEAM_ISSUES_URL;
+    console.log(`  IssuesUrl: ${TEAM_ISSUES_URL}`);
   }
 
   fs.writeFileSync(
