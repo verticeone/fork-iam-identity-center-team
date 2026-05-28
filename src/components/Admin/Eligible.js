@@ -26,8 +26,8 @@ import {
     RadioGroup,
     Icon,
     Grid
-} from "@awsui/components-react";
-import {useCollection} from "@awsui/collection-hooks";
+} from "@cloudscape-design/components";
+import {useCollection} from "@cloudscape-design/collection-hooks";
 import Ous from "../Shared/Ous";
 import { generateClient } from "aws-amplify/api";
 import {onPublishOUs, onPublishPermissions} from "../../graphql/subscriptions";

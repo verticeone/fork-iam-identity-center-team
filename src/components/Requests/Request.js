@@ -2,18 +2,18 @@
 // This AWS Content is provided subject to the terms of the AWS Customer Agreement available at
 // http://aws.amazon.com/agreement or other written agreement between Customer and either
 // Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
-import Form from "@awsui/components-react/form";
-import FormField from "@awsui/components-react/form-field";
-import Input from "@awsui/components-react/input";
-import Select from "@awsui/components-react/select";
-import Container from "@awsui/components-react/container";
-import Header from "@awsui/components-react/header";
-import SpaceBetween from "@awsui/components-react/space-between";
-import Button from "@awsui/components-react/button";
-import Textarea from "@awsui/components-react/textarea";
-import RadioGroup from "@awsui/components-react/radio-group";
-import StatusIndicator from "@awsui/components-react/status-indicator";
-import Box from "@awsui/components-react/box";
+import Form from "@cloudscape-design/components/form";
+import FormField from "@cloudscape-design/components/form-field";
+import Input from "@cloudscape-design/components/input";
+import Select from "@cloudscape-design/components/select";
+import Container from "@cloudscape-design/components/container";
+import Header from "@cloudscape-design/components/header";
+import SpaceBetween from "@cloudscape-design/components/space-between";
+import Button from "@cloudscape-design/components/button";
+import Textarea from "@cloudscape-design/components/textarea";
+import RadioGroup from "@cloudscape-design/components/radio-group";
+import StatusIndicator from "@cloudscape-design/components/status-indicator";
+import Box from "@cloudscape-design/components/box";
 import moment from "moment";
 import { DatePicker } from "antd";
 import "../../index.css";

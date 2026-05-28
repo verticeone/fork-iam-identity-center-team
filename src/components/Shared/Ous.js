@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import ExpandableSection from '@awsui/components-react/expandable-section';
-import Checkbox from '@awsui/components-react/checkbox';
-import Box from '@awsui/components-react/box';
+import ExpandableSection from '@cloudscape-design/components/expandable-section';
+import Checkbox from '@cloudscape-design/components/checkbox';
+import Box from '@cloudscape-design/components/box';
 import "../../index.css";
 
 const Hierarchy = ({ options, resource, onSelect, handleToggle, action, allItems }) => {

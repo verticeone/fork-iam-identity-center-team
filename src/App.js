@@ -8,7 +8,7 @@ import { useAuthenticator } from "@aws-amplify/ui-react";
 import { Layout } from "antd";
 import Nav from "./components/Navigation/Nav";
 import "./index.css";
-import { Button, Spinner } from "@awsui/components-react";
+import { Button, Spinner } from "@cloudscape-design/components";
 
 const { Header, Content } = Layout;
 

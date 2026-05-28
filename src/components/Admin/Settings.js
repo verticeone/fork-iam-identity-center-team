@@ -3,13 +3,13 @@
 // http://aws.amazon.com/agreement or other written agreement between Customer and either
 // Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
 import React, { useState, useEffect } from "react";
-import Box from "@awsui/components-react/box";
-import SpaceBetween from "@awsui/components-react/space-between";
-import Container from "@awsui/components-react/container";
-import Header from "@awsui/components-react/header";
-import ColumnLayout from "@awsui/components-react/column-layout";
-import Button from "@awsui/components-react/button";
-import Select from "@awsui/components-react/select";
+import Box from "@cloudscape-design/components/box";
+import SpaceBetween from "@cloudscape-design/components/space-between";
+import Container from "@cloudscape-design/components/container";
+import Header from "@cloudscape-design/components/header";
+import ColumnLayout from "@cloudscape-design/components/column-layout";
+import Button from "@cloudscape-design/components/button";
+import Select from "@cloudscape-design/components/select";
 import params from "../../parameters.json";
 import {
   ContentLayout,
@@ -20,8 +20,8 @@ import {
   Input,
   Spinner,
   Table,
-} from "@awsui/components-react";
-import StatusIndicator from "@awsui/components-react/status-indicator";
+} from "@cloudscape-design/components";
+import StatusIndicator from "@cloudscape-design/components/status-indicator";
 import { Divider } from "antd";
 import "../../index.css";
 import {
