@@ -5,5 +5,8 @@
     "ReleasesUrl": "https://github.com/aws-samples/iam-identity-center-team/releases/tag/v1.4.2",
     "DocumentationUrl": "https://aws-samples.github.io/iam-identity-center-team/",
     "FeedbackUrl": "https://pulse.aws/survey/PZDTVK85",
-    "IssuesUrl": "https://github.com/aws-samples/iam-identity-center-team/issues"
+    "IssuesUrl": "https://github.com/aws-samples/iam-identity-center-team/issues",
+    "NotificationId": "1.2.0-feature",
+    "NotificationTitle": "Feature announcement",
+    "NotificationMessage": "TEAM v1.2.0 introduces support for the use of external repositories due to CodeCommit deprecation"
 }

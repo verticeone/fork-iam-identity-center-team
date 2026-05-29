@@ -19,7 +19,10 @@ const {
   TEAM_RELEASES_URL,
   TEAM_DOCUMENTATION_URL,
   TEAM_FEEDBACK_URL,
-  TEAM_ISSUES_URL
+  TEAM_ISSUES_URL,
+  TEAM_NOTIFICATION_ID,
+  TEAM_NOTIFICATION_TITLE,
+  TEAM_NOTIFICATION_MESSAGE
 } = process.env;
 
 async function update_react_parameters() {
@@ -72,6 +75,21 @@ async function update_react_parameters() {
   if (TEAM_ISSUES_URL) {
     reactParametersJson.IssuesUrl = TEAM_ISSUES_URL;
     console.log(`  IssuesUrl: ${TEAM_ISSUES_URL}`);
+  }
+
+  if (TEAM_NOTIFICATION_ID) {
+    reactParametersJson.NotificationId = TEAM_NOTIFICATION_ID;
+    console.log(`  NotificationId: ${TEAM_NOTIFICATION_ID}`);
+  }
+
+  if (TEAM_NOTIFICATION_TITLE) {
+    reactParametersJson.NotificationTitle = TEAM_NOTIFICATION_TITLE;
+    console.log(`  NotificationTitle: ${TEAM_NOTIFICATION_TITLE}`);
+  }
+
+  if (TEAM_NOTIFICATION_MESSAGE) {
+    reactParametersJson.NotificationMessage = TEAM_NOTIFICATION_MESSAGE;
+    console.log(`  NotificationMessage: ${TEAM_NOTIFICATION_MESSAGE}`);
   }
 
   fs.writeFileSync(
