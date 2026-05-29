@@ -3,7 +3,7 @@
 // http://aws.amazon.com/agreement or other written agreement between Customer and either
 // Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
 /* eslint-disable jsx-a11y/anchor-is-valid */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Alert from "@cloudscape-design/components/alert";
 import "../../index.css";
 import params from "../../parameters.json";
@@ -14,6 +14,16 @@ import { useHistory } from "react-router-dom";
 function Header(props) {
   const history = useHistory();
   const [visible, setVisible] = useState(false);
+  const notificationId = params.NotificationId;
+  const [hasUnread, setHasUnread] = useState(
+    () => localStorage.getItem("lastReadNotification") !== notificationId
+  );
+
+  useEffect(() => {
+    if (!hasUnread) {
+      localStorage.setItem("lastReadNotification", notificationId);
+    }
+  }, [hasUnread, notificationId]);
 
   async function handleSignOut() {
     try {
@@ -28,11 +38,11 @@ function Header(props) {
       <Alert
         dismissible
         statusIconAriaLabel="Info"
-        header="Feature announcement"
+        header={params.NotificationTitle}
         visible={visible}
         onDismiss={() => setVisible(false)}
       >
-        🚀 TEAM v1.2.0 introduces support for the use of external repositories due to CodeCommit deprecation 
+        🚀 {params.NotificationMessage}
       </Alert>
     );
   }
@@ -59,10 +69,13 @@ function Header(props) {
             type: "button",
             iconName: "notification",
             title: "Notifications",
-            ariaLabel: "Notifications (unread)",
-            badge: true,
+            ariaLabel: hasUnread ? "Notifications (unread)" : "Notifications",
+            badge: hasUnread,
             disableUtilityCollapse: false,
-            onClick: () => setVisible(true),
+            onClick: () => {
+              setVisible(!visible);
+              setHasUnread(false);
+            },
           },
           {
             type: "button",

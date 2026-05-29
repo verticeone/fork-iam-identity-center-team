@@ -23,4 +23,5 @@
 .picbox {
   width: 1020px;
   height: 690px;
+  overflow: hidden;
 }
