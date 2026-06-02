@@ -1,6 +1,6 @@
 import { defineFunction } from '@aws-amplify/backend';
 import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
-import { StartingPosition } from 'aws-cdk-lib/aws-lambda';
+import { StartingPosition, FilterCriteria, FilterRule } from 'aws-cdk-lib/aws-lambda';
 import { aws_iam } from 'aws-cdk-lib';
 import type { Backend } from '../../backend';
 import { appIdLower, branchName } from '../../config';
@@ -50,6 +50,14 @@ export function applyEscapeHatches(backend: Backend, eventDataStoreArn?: string)
     backend.teamgetLogs.resources.lambda.addEventSource(
       new DynamoEventSource(table, {
         startingPosition: StartingPosition.LATEST,
+        batchSize: 100,
+        bisectBatchOnError: true,
+        retryAttempts: 3,
+        filters: [
+          FilterCriteria.filter({
+            eventName: FilterRule.isEqual('INSERT'),
+          }),
+        ],
       })
     );
     // Use explicit IAM policies instead of grant* methods
