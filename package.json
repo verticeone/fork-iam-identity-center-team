@@ -44,6 +44,7 @@
     "eslint-plugin-react": "^7.34.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
     "vite": "^5.4.0"
   },
   "description": "Temporary Elevated Access Management is an automated, time-based approval workflow for granting and revoking elevated user permissions on AWS",
